@@ -1,0 +1,14 @@
+{
+  "name": "eventhub-improved-demo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Responsive EventHub event booking demo with REST APIs for QA practice.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}
