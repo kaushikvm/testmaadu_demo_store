@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cart | OnlineMart demo store</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+  <main>
+    <div class="container">
+      <div class="page-head">
+        <div><h1>Your cart</h1><p id="cart-sub">Review items before checkout.</p></div>
+        <a href="index.html" class="btn btn-ghost">← Continue shopping</a>
+      </div>
+      <div id="cart-root"></div>
+    </div>
+  </main>
+  <script src="assets/app.js"></script>
+  <script>
+    MM.header('cart');
+    MM.footer();
+    const root = document.getElementById('cart-root');
+    let coupon = sessionStorage.getItem('mm_coupon') || '';
+
+    async function render() {
+      const c = MM.cart();
+      if (!c.length) {
+        document.getElementById('cart-sub').textContent = 'Your cart is empty.';
+        root.innerHTML = `<div class="card empty"><div class="big">🛒</div><h2>Your cart is empty</h2><p class="muted">Add a couple of products to try the checkout.</p><a class="btn btn-primary" href="index.html">Go to market</a></div>`;
+        return;
+      }
+      const r = await MM.api('/cart/quote', { method: 'POST', body: { items: c.map(l => ({ productId: l.productId, qty: l.qty })), coupon } });
+      let couponMsg = '';
+      let q = r.data;
+      if (!r.ok && r.data?.error === 'INVALID_COUPON') {
+        couponMsg = `<div class="err-text" style="display:block">${MM.esc(r.data.message)}</div>`;
+        coupon = ''; sessionStorage.removeItem('mm_coupon');
+        q = (await MM.api('/cart/quote', { method: 'POST', body: { items: c.map(l => ({ productId: l.productId, qty: l.qty })) } })).data;
+      } else if (!r.ok) {
+        root.innerHTML = `<div class="alert bad"><span class="ico">⚠️</span><div><b>Cart problem</b>${MM.esc(r.data?.message)}</div></div>`; return;
+      }
+      document.getElementById('cart-sub').textContent = `${q.itemCount} item${q.itemCount === 1 ? '' : 's'} in your cart.`;
+      root.innerHTML = `
+        <div class="split">
+          <div class="card">
+            ${q.lines.map(l => { const meta = c.find(x => x.productId === l.productId); return `
+              <div class="cart-line" data-line="${l.productId}">
+                <div class="mini" style="${MM.thumbBg(meta.colors || ['#e0e7ff', '#a5b4fc'])}">${l.emoji}</div>
+                <div>
+                  <a href="product.html?id=${l.productId}" style="font-weight:700;color:var(--text)">${MM.esc(l.name)}</a>
+                  <div class="muted" style="font-size:13px">${MM.inr(l.price)} each</div>
+                  <div style="display:flex;gap:14px;align-items:center;margin-top:8px">
+                    <label style="font-size:13px;color:var(--muted)">Qty
+                      <select class="qty-select" data-qty="${l.productId}" aria-label="Quantity for ${MM.esc(l.name)}">
+                        ${[1,2,3,4,5,6,7,8,9,10].map(n => `<option value="${n}" ${n === l.qty ? 'selected' : ''}>${n}</option>`).join('')}
+                      </select></label>
+                    <button class="btn-danger-link" data-remove="${l.productId}" type="button">Remove</button>
+                  </div>
+                </div>
+                <div style="font-weight:800">${MM.inr(l.lineTotal)}</div>
+              </div>`; }).join('')}
+          </div>
+          <div class="card summary sticky">
+            <h2>Order summary</h2>
+            <label class="field" style="margin:12px 0 6px"><span>Have a coupon?</span>
+              <div class="coupon-row">
+                <input type="text" id="coupon-code" placeholder="e.g. TESTMAADU10" value="${MM.esc(q.coupon?.code || '')}" maxlength="20">
+                <button class="btn btn-ghost" id="apply-coupon" type="button">Apply</button>
+              </div>${couponMsg}
+            </label>
+            ${q.coupon ? `<div class="chip ok" style="margin-bottom:8px">✓ ${q.coupon.code} applied: ${q.coupon.label}</div>` : ''}
+            <div class="line"><span>Subtotal (${q.itemCount} items)</span><span>${MM.inr(q.subtotal)}</span></div>
+            ${q.discount ? `<div class="line"><span>Coupon discount</span><span class="neg">−${MM.inr(q.discount)}</span></div>` : ''}
+            <div class="line"><span>Delivery</span><span>${q.shipping ? MM.inr(q.shipping) : '<span class="neg">FREE</span>'}</span></div>
+            <div class="line"><span>GST (5%)</span><span>${MM.inr(q.tax)}</span></div>
+            <div class="line total"><span>Total</span><span id="cart-total">${MM.inr(q.total)}</span></div>
+            <a href="checkout.html" class="btn btn-accent btn-block btn-lg" id="proceed-checkout" style="margin-top:14px">Proceed to checkout</a>
+            <p class="muted" style="font-size:12px;text-align:center;margin:10px 0 0">Free delivery on orders above ₹999</p>
+          </div>
+        </div>`;
+    }
+
+    root.addEventListener('change', e => {
+      const s = e.target.closest('[data-qty]'); if (!s) return;
+      const c = MM.cart(); c.find(l => l.productId === s.dataset.qty).qty = Number(s.value); MM.saveCart(c); render();
+    });
+    root.addEventListener('click', e => {
+      const rm = e.target.closest('[data-remove]');
+      if (rm) { MM.saveCart(MM.cart().filter(l => l.productId !== rm.dataset.remove)); MM.toast('Item removed from cart', 1800); render(); }
+      if (e.target.id === 'apply-coupon') { coupon = document.getElementById('coupon-code').value.trim(); sessionStorage.setItem('mm_coupon', coupon); render(); }
+    });
+    render();
+  </script>
+</body>
+</html>

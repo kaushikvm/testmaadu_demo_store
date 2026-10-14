@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Product | OnlineMart demo store</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+  <main><div class="container" id="pdp-root"><div class="skeleton"></div></div></main>
+  <script src="assets/app.js"></script>
+  <script>
+    MM.header('market');
+    MM.footer();
+    (async () => {
+      const id = new URLSearchParams(location.search).get('id') || '';
+      const root = document.getElementById('pdp-root');
+      const r = await MM.api('/products/' + encodeURIComponent(id));
+      if (!r.ok) { root.innerHTML = `<div class="card empty"><div class="big">🤷</div><h2>Product not found</h2><p class="muted">${MM.esc(r.data?.message)}</p><a class="btn btn-primary" href="index.html">Back to market</a></div>`; return; }
+      const p = r.data;
+      document.title = p.name + ' | OnlineMart demo store';
+      let qty = 1;
+      root.innerHTML = `
+        <div class="crumbs"><a href="index.html">Market</a> / <a href="index.html?category=${p.category}">${p.category}</a> / ${MM.esc(p.name)}</div>
+        <div class="pdp card">
+          <div class="thumb" style="${MM.thumbBg(p.colors)}"><span aria-hidden="true">${p.emoji}</span></div>
+          <div>
+            <span class="chip brand">${p.category}</span>
+            <h1 style="margin-top:10px" id="product-title">${MM.esc(p.name)}</h1>
+            <div>${MM.stars(p.rating)} <span class="rating">${p.reviews.toLocaleString('en-IN')} ratings</span></div>
+            <div class="divider"></div>
+            <div class="price"><span class="now">${MM.inr(p.price)}</span><span class="mrp">${MM.inr(p.mrp)}</span><span class="off">${MM.pct(p)}% off</span></div>
+            <p class="muted" style="font-size:13px;margin:4px 0 0">Inclusive of all taxes. Product ID ${p.id}</p>
+            <p>${MM.esc(p.description)}</p>
+            <ul class="bullets">
+              <li>${p.freeDelivery ? 'Free delivery' : 'Free delivery on orders above ₹999'}</li>
+              <li>7 day easy returns</li>
+              <li>${p.stock === 0 ? '<b style="color:var(--bad)">Currently out of stock</b>' : p.stock + ' in stock'}</li>
+            </ul>
+            <div style="display:flex;gap:12px;align-items:center;margin-top:18px">
+              <div class="qty" aria-label="Quantity"><button type="button" id="qty-minus" aria-label="Decrease quantity">−</button><span id="qty-value">1</span><button type="button" id="qty-plus" aria-label="Increase quantity">+</button></div>
+              <button class="btn btn-primary btn-lg" id="add-to-cart" type="button" ${p.stock === 0 ? 'disabled' : ''}>Add to cart</button>
+              <button class="btn btn-accent btn-lg" id="buy-now" type="button" ${p.stock === 0 ? 'disabled' : ''}>Buy now</button>
+            </div>
+          </div>
+        </div>`;
+      const show = () => document.getElementById('qty-value').textContent = qty;
+      document.getElementById('qty-minus').onclick = () => { qty = Math.max(1, qty - 1); show(); };
+      document.getElementById('qty-plus').onclick = () => { qty = Math.min(Math.min(10, p.stock), qty + 1); show(); };
+      document.getElementById('add-to-cart').onclick = () => MM.addToCart(p, qty);
+      document.getElementById('buy-now').onclick = () => { MM.addToCart(p, qty); location.href = 'checkout.html'; };
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Help and FAQ | OnlineMart demo store</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+  <main>
+    <div class="container">
+      <div class="page-head"><div><h1>Help and FAQ</h1><p>Answers to common questions, plus live chat.</p></div></div>
+      <div class="split">
+        <div class="card faq">
+          <h2>Frequently asked questions</h2>
+          <details open><summary>Is this a real shop?</summary><p>No. OnlineMart is a demo store for practising functional, end-to-end and API testing. Nothing is shipped and no money is charged.</p></details>
+          <details><summary>How do I sign in?</summary><p>Use <b>demo@testmaadu.in</b> with password <b>Demo@123</b>, or any email address with a password of at least 6 characters.</p></details>
+          <details><summary>Which card number can I use?</summary><p>Any 16 digit number works, for example 4111 1111 1111 1111, with any future expiry date and any 3 digit CVV.</p></details>
+          <details><summary>Are there coupons?</summary><p>Yes. <b>TESTMAADU10</b> gives 10% off and <b>FREESHIP</b> removes the delivery charge.</p></details>
+          <details><summary>Is there an API?</summary><p>Yes. Every page talks to a small REST API under <code>/api</code>. See the <a href="api-docs.html">API docs</a> or download <a href="openapi.json">openapi.json</a>.</p></details>
+          <details><summary>Why did my orders disappear?</summary><p>The demo server keeps orders in memory, so they can reset when the server restarts. Your browser also keeps a copy, so My orders still shows them on this device.</p></details>
+          <h2 id="terms" style="margin-top:26px">Terms and conditions</h2>
+          <p class="muted">This store is for demonstration only. By placing an order you agree that no goods will be delivered, no payment will be taken, and data you enter may be reset at any time. Please do not enter real card numbers or personal data.</p>
+        </div>
+        <aside class="card sticky">
+          <h2>Live chat</h2>
+          <p class="muted" style="margin-top:0;font-size:14px">Chat with our support bot (inside an iframe).</p>
+          <iframe class="chat-frame" id="support-chat" title="Support chat" src="support-frame.html"></iframe>
+        </aside>
+      </div>
+    </div>
+  </main>
+  <script src="assets/app.js"></script>
+  <script>MM.header(''); MM.footer();</script>
+</body>
+</html>

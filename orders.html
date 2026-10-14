@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>My orders | OnlineMart demo store</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+  <main>
+    <div class="container">
+      <div class="page-head">
+        <div><h1>My orders</h1><p id="orders-sub">Track and manage your orders.</p></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <input type="search" id="order-search" placeholder="Search by order ID or product" aria-label="Search orders" style="width:260px">
+          <select id="order-range" aria-label="Time range" style="width:170px">
+            <option value="all">All time</option>
+            <option value="today">Today</option>
+            <option value="30">Last 30 days</option>
+          </select>
+        </div>
+      </div>
+      <div id="orders-root"><div class="skeleton" style="height:160px"></div></div>
+    </div>
+  </main>
+  <script src="assets/app.js"></script>
+  <script>
+    MM.header('orders');
+    MM.footer();
+    const root = document.getElementById('orders-root');
+    let all = [];
+
+    async function init() {
+      if (!MM.loggedIn()) {
+        root.innerHTML = `<div class="card empty"><div class="big">📦</div><h2>Sign in to see your orders</h2><a class="btn btn-primary" href="profile.html?next=orders.html">Sign in</a></div>`;
+        return;
+      }
+      const r = await MM.api('/orders', { auth: true });
+      if (r.status === 401) { location.href = 'profile.html?next=orders.html'; return; }
+      const server = r.ok ? r.data.items : [];
+      const email = MM.user().email;
+      const byId = new Map();
+      [...server, ...MM.localOrders().filter(o => !o.owner || o.owner === email)].forEach(o => { if (!byId.has(o.id)) byId.set(o.id, o); });
+      all = [...byId.values()].sort((a, b) => b.placedAt.localeCompare(a.placedAt));
+      render();
+    }
+
+    function render() {
+      const q = document.getElementById('order-search').value.trim().toLowerCase();
+      const range = document.getElementById('order-range').value;
+      const now = Date.now();
+      const list = all.filter(o =>
+        (!q || o.id.toLowerCase().includes(q) || o.items.some(i => i.name.toLowerCase().includes(q))) &&
+        (range === 'all' || (range === 'today' ? new Date(o.placedAt).toDateString() === new Date().toDateString() : now - new Date(o.placedAt) < 30 * 864e5)));
+      document.getElementById('orders-sub').textContent = `${all.length} order${all.length === 1 ? '' : 's'} placed.`;
+      if (!all.length) { root.innerHTML = `<div class="card empty" id="no-orders"><div class="big">📦</div><h2>No orders yet</h2><p class="muted">Orders you place will show up here.</p><a class="btn btn-primary" href="index.html">Start shopping</a></div>`; return; }
+      if (!list.length) { root.innerHTML = `<div class="card empty"><div class="big">🔎</div><h2>No orders match</h2></div>`; return; }
+      root.innerHTML = list.map(o => `
+        <article class="card order" data-order-id="${o.id}">
+          <div class="order-head">
+            <div><div class="k">Order placed</div><div class="v">${new Date(o.placedAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</div></div>
+            <div><div class="k">Total</div><div class="v">${MM.inr(o.totals.total)}</div></div>
+            <div><div class="k">Ship to</div><div class="v">${MM.esc(o.address.fullName)}</div></div>
+            <div class="right"><span class="chip ok">● ${o.status}</span><span class="muted" style="font-weight:600">#${o.id}</span></div>
+          </div>
+          <div class="order-body">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+              <div><b>Arriving by ${new Date(o.estimatedDelivery).toDateString()}</b><div class="muted" style="font-size:13px">${o.delivery === 'express' ? 'Express' : 'Standard'} delivery${o.giftWrap ? ' · Gift wrapped 🎁' : ''}</div></div>
+              <button class="btn btn-ghost" type="button" data-reorder="${o.id}">↻ Buy again</button>
+            </div>
+            <div class="track" aria-label="Order progress"><span class="dot on"></span><span class="bar on"></span><span class="dot on"></span><span class="bar"></span><span class="dot"></span><span class="bar"></span><span class="dot"></span></div>
+            <div class="track-labels"><span>Ordered</span><span>Packed</span><span>Shipped</span><span>Delivered</span></div>
+            <div class="order-items" style="margin-top:14px">
+              ${o.items.map(i => `<div class="order-item"><span class="mini">${i.emoji}</span><div><b>${MM.esc(i.name)}</b><div class="muted">Qty ${i.qty} · ${MM.inr(i.lineTotal)}</div></div></div>`).join('')}
+            </div>
+            <details class="more">
+              <summary>View order details ▾</summary>
+              <div class="detail-grid">
+                <div class="box"><h4>Delivery address</h4>${MM.esc(o.address.fullName)}<br>${MM.esc(o.address.line1)}${o.address.line2 ? '<br>' + MM.esc(o.address.line2) : ''}<br>${MM.esc(o.address.city)}, ${MM.esc(o.address.state)} ${MM.esc(o.address.pincode)}<br>📞 ${MM.esc(o.address.phone)}</div>
+                <div class="box"><h4>Payment</h4>${o.payment.method === 'card' ? 'Card •••• ' + o.payment.cardLast4 : o.payment.method === 'upi' ? 'UPI ' + MM.esc(o.payment.upiId) : 'Cash on delivery'}<br><span class="muted">Txn ${o.payment.transactionId}</span></div>
+                <div class="box"><h4>Price details</h4>
+                  Subtotal ${MM.inr(o.totals.subtotal)}<br>${o.totals.discount ? `Discount −${MM.inr(o.totals.discount)}${o.coupon ? ' (' + o.coupon.code + ')' : ''}<br>` : ''}Delivery ${o.totals.shipping ? MM.inr(o.totals.shipping) : 'FREE'}<br>GST ${MM.inr(o.totals.tax)}<br><b>Total ${MM.inr(o.totals.total)}</b></div>
+              </div>
+            </details>
+          </div>
+        </article>`).join('');
+    }
+
+    root.addEventListener('click', e => {
+      const b = e.target.closest('[data-reorder]'); if (!b) return;
+      const o = all.find(x => x.id === b.dataset.reorder);
+      const c = MM.cart();
+      for (const i of o.items) { const l = c.find(x => x.productId === i.productId); if (l) l.qty = Math.min(10, l.qty + i.qty); else c.push({ productId: i.productId, qty: i.qty, name: i.name, emoji: i.emoji, price: i.price, colors: ['#e0e7ff', '#a5b4fc'] }); }
+      MM.saveCart(c);
+      MM.toast('Items added to cart. <a href="cart.html">View cart</a>');
+    });
+    document.getElementById('order-search').addEventListener('input', render);
+    document.getElementById('order-range').addEventListener('change', render);
+    init();
+  </script>
+</body>
+</html>
