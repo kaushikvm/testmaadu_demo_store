@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>API docs | OnlineMart demo store</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/styles.css">
+  <link rel="stylesheet" href="assets/vendor/swagger-ui/swagger-ui.css">
+  <style>.swagger-ui .topbar { display: none; } #swagger { background: #fff; border-radius: 16px; border: 1px solid var(--line); padding: 8px 0; }</style>
+</head>
+<body>
+  <main>
+    <div class="container">
+      <div class="page-head">
+        <div><h1>OnlineMart API</h1><p>OpenAPI 3 spec at <a href="openapi.json" target="_blank">/openapi.json</a>. Sign in with <code>POST /api/auth/login</code>, then click Authorize and paste the token.</p></div>
+      </div>
+      <div id="swagger"></div>
+    </div>
+  </main>
+  <script src="assets/app.js"></script>
+  <script src="assets/vendor/swagger-ui/swagger-ui-bundle.js"></script>
+  <script>
+    MM.header(''); MM.footer();
+    SwaggerUIBundle({ url: 'openapi.json', dom_id: '#swagger', deepLinking: true, persistAuthorization: true });
+  </script>
+</body>
+</html>

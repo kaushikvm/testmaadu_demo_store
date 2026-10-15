@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <title>OnlineMart support chat</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/styles.css">
+  <style>
+    body { min-height: 0; height: 100vh; background: #fff; }
+    .chat { display: flex; flex-direction: column; height: 100vh; }
+    .msgs { flex: 1; overflow: auto; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+    .m { max-width: 80%; padding: 9px 12px; border-radius: 14px; font-size: 13px; }
+    .m.bot { background: var(--surface-2); align-self: flex-start; border-bottom-left-radius: 4px; }
+    .m.me { background: var(--brand); color: #fff; align-self: flex-end; border-bottom-right-radius: 4px; }
+    .send { display: flex; gap: 8px; padding: 10px; border-top: 1px solid var(--line); }
+    .quick { display: flex; gap: 6px; flex-wrap: wrap; padding: 0 14px 8px; }
+    .quick button { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 5px 10px; font: inherit; font-size: 12px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div class="chat">
+    <div class="msgs" id="messages"><div class="m bot">Hi! 👋 I am Mart Bot. How can I help you today?</div></div>
+    <div class="quick">
+      <button type="button" data-q="Where is my order?">Where is my order?</button>
+      <button type="button" data-q="Do you have coupons?">Coupons</button>
+      <button type="button" data-q="Return policy">Returns</button>
+    </div>
+    <form class="send" id="chat-form">
+      <input type="text" id="chat-input" placeholder="Type a message..." aria-label="Chat message" autocomplete="off">
+      <button class="btn btn-primary" type="submit" id="chat-send">Send</button>
+    </form>
+  </div>
+  <script>
+    const box = document.getElementById('messages');
+    const add = (t, who) => { const d = document.createElement('div'); d.className = 'm ' + who; d.textContent = t; box.appendChild(d); box.scrollTop = box.scrollHeight; };
+    function reply(q) {
+      q = q.toLowerCase();
+      if (q.includes('order')) return 'You can track every order on the My orders page.';
+      if (q.includes('coupon') || q.includes('offer')) return 'Try TESTMAADU10 for 10% off, or FREESHIP for free delivery.';
+      if (q.includes('return')) return 'Returns are accepted within 7 days. (This is a demo store, so nothing actually ships.)';
+      if (q.includes('pay')) return 'We accept card, UPI and cash on delivery. No real money is charged.';
+      return 'Thanks! A support agent will get back to you soon.';
+    }
+    function ask(q) { if (!q.trim()) return; add(q, 'me'); setTimeout(() => add(reply(q), 'bot'), 500); }
+    document.getElementById('chat-form').onsubmit = e => { e.preventDefault(); const i = document.getElementById('chat-input'); ask(i.value); i.value = ''; };
+    document.querySelectorAll('[data-q]').forEach(b => b.onclick = () => ask(b.dataset.q));
+  </script>
+</body>
+</html>

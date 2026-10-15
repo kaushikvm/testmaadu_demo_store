@@ -1,0 +1,8 @@
+{
+  "name": "onlinemart-demo-store",
+  "version": "1.0.0",
+  "private": true,
+  "description": "OnlineMart: demo ecommerce store for TestMaadu demos (functional, E2E and API testing).",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=18" }
+}
