@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <title>3-D Secure verification</title>
+  <link rel="stylesheet" href="assets/styles.css">
+  <style>
+    body { background: transparent; min-height: 0; display: block; }
+    .otp { background: #fffbeb; border: 1px solid #fcd34d; border-radius: 12px; padding: 14px; }
+    .otp h3 { margin: 0 0 4px; font-size: 15px; }
+    .otp p { margin: 0 0 10px; font-size: 13px; color: var(--muted); }
+    .otp .row2 { display: flex; gap: 8px; }
+    .otp input { letter-spacing: 6px; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <form class="otp" id="otp-form" novalidate>
+    <h3>🔐 Bank verification (3-D Secure)</h3>
+    <p id="otp-help">Enter the 6 digit OTP sent to your phone for the card ending <b id="otp-last4"></b>. Demo OTP: <b>123456</b></p>
+    <label class="field" style="margin-bottom:10px"><span>One-time password</span>
+      <input type="text" id="otp-code" name="otp" inputmode="numeric" maxlength="6" placeholder="••••••">
+      <div class="err-text" id="otp-error">Wrong OTP. Try 123456.</div>
+    </label>
+    <div class="row2">
+      <button class="btn btn-primary" type="submit" id="verify-otp">Verify and pay</button>
+      <button class="btn btn-ghost" type="button" id="cancel-otp">Cancel</button>
+    </div>
+  </form>
+  <script>
+    document.getElementById('otp-last4').textContent = new URLSearchParams(location.search).get('last4') || '••••';
+    document.getElementById('otp-form').addEventListener('submit', e => {
+      e.preventDefault();
+      const code = document.getElementById('otp-code');
+      const good = code.value.trim() === '123456';
+      code.classList.toggle('invalid', !good);
+      if (good) parent.postMessage({ type: 'mm-otp-verified' }, location.origin);
+    });
+    document.getElementById('cancel-otp').addEventListener('click', () => parent.postMessage({ type: 'mm-otp-cancelled' }, location.origin));
+  </script>
+</body>
+</html>

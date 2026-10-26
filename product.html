@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Product | testmaadu.mart demo store</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+  <main><div class="container" id="pdp-root"><div class="skeleton"></div></div></main>
+  <script src="assets/app.js"></script>
+  <script src="assets/om-pincode.js"></script>
+  <script>
+    MM.header('market');
+    MM.footer();
+    const gql = (operationName, query, productId) => MM.api('/graphql', { method: 'POST', body: { operationName, query, variables: { productId } } });
+
+    (async () => {
+      const id = (new URLSearchParams(location.search).get('id') || '').toUpperCase();
+      const root = document.getElementById('pdp-root');
+      const r = await MM.api('/products/' + encodeURIComponent(id));
+      const p = r.ok ? r.data : MM.findMyProduct(id);
+      if (!p) { root.innerHTML = `<div class="card empty"><div class="big">🤷</div><h2>Product not found</h2><p class="muted">${MM.esc(r.data?.message)}</p><a class="btn btn-primary" href="index.html">Back to market</a></div>`; return; }
+      document.title = p.name + ' | testmaadu.mart demo store';
+      let qty = 1;
+      root.innerHTML = `
+        <div class="crumbs"><a href="index.html">Market</a> / <a href="index.html?category=${p.category}">${MM.esc(p.category)}</a> / ${MM.esc(p.name)}</div>
+        <div class="pdp card">
+          <div class="thumb" style="${MM.thumbBg(p.colors)};overflow:hidden">${MM.thumbArt(p)}</div>
+          <div>
+            <span class="chip brand">${MM.esc(p.category)}</span> ${p.isNew ? '<span class="chip new">New</span>' : ''}
+            <h1 style="margin-top:10px" id="product-title">${MM.esc(p.name)}</h1>
+            <div>${p.isNew ? '<span class="rating">No ratings yet</span>' : `${MM.stars(p.rating)} <span class="rating">${p.reviews.toLocaleString('en-IN')} ratings</span>`}</div>
+            <div class="divider"></div>
+            <div class="price"><span class="now">${MM.inr(p.price)}</span>${p.mrp > p.price ? `<span class="mrp">${MM.inr(p.mrp)}</span><span class="off">${MM.pct(p)}% off</span>` : ''}</div>
+            <p class="muted" style="font-size:13px;margin:4px 0 0">Inclusive of all taxes. Product ID ${p.id}</p>
+            <ul class="bullets">
+              <li>${p.freeDelivery ? 'Free delivery' : 'Free delivery on orders above ₹999'}</li>
+              <li>7 day easy returns</li>
+              <li>${p.stock === 0 ? '<b style="color:var(--bad)">Currently out of stock</b>' : p.stock + ' in stock'}</li>
+            </ul>
+            <div style="display:flex;gap:12px;align-items:center;margin:18px 0;flex-wrap:wrap">
+              <div class="qty" aria-label="Quantity"><button type="button" id="qty-minus" aria-label="Decrease quantity">−</button><span id="qty-value">1</span><button type="button" id="qty-plus" aria-label="Increase quantity">+</button></div>
+              <button class="btn btn-primary btn-lg" id="add-to-cart" type="button" ${p.stock === 0 ? 'disabled' : ''}>Add to cart</button>
+              <button class="btn btn-accent btn-lg" id="buy-now" type="button" ${p.stock === 0 ? 'disabled' : ''}>Buy now</button>
+            </div>
+            <om-pincode id="delivery-checker"></om-pincode>
+          </div>
+        </div>
+
+        <div class="card pdp-tabs">
+          <div class="tabs" role="tablist" aria-label="Product information">
+            <button class="on" type="button" role="tab" id="tab-desc" aria-selected="true" aria-controls="panel-desc">Description</button>
+            <button type="button" role="tab" id="tab-reviews" aria-selected="false" aria-controls="panel-reviews">Reviews</button>
+            <button type="button" role="tab" id="tab-faq" aria-selected="false" aria-controls="panel-faq">Questions</button>
+          </div>
+          <div role="tabpanel" id="panel-desc" aria-labelledby="tab-desc"><p>${MM.esc(p.description || 'No description yet.')}</p></div>
+          <div role="tabpanel" id="panel-reviews" aria-labelledby="tab-reviews" hidden>
+            <div id="rating-summary" class="muted">Loading ratings...</div>
+            <div id="review-list" style="margin-top:12px"></div>
+            <form id="review-form" style="margin-top:16px" novalidate>
+              <h3>Rate this product</h3>
+              <div class="stars-input" role="radiogroup" aria-label="Your rating">
+                ${[5, 4, 3, 2, 1].map(n => `<input type="radio" name="rating" id="star-${n}" value="${n}"><label for="star-${n}" title="${n} star${n > 1 ? 's' : ''}">★</label>`).join('')}
+              </div>
+              <label class="field" style="margin-top:8px"><span>Your review</span><textarea id="review-text" name="review" rows="2" placeholder="What did you like or dislike?"></textarea></label>
+              <button class="btn btn-ghost" type="submit" id="submit-review">Submit review</button>
+            </form>
+          </div>
+          <div role="tabpanel" id="panel-faq" aria-labelledby="tab-faq" hidden>
+            <div class="accordion">
+              <details><summary>Is there a warranty?</summary><p>Yes, 1 year manufacturer warranty on electronics, 30 days on everything else.</p></details>
+              <details><summary>Can I return it?</summary><p>Return within 7 days of delivery from My orders. Add a photo of the item.</p></details>
+              <details><summary>Is cash on delivery available?</summary><p>Check your PIN code above. Most metro PIN codes have cash on delivery.</p></details>
+            </div>
+          </div>
+        </div>
+
+        <section class="recs"><h2>You may also like</h2><div class="grid" id="also-like"><div class="skeleton"></div><div class="skeleton"></div></div></section>`;
+
+      const show = () => document.getElementById('qty-value').textContent = qty;
+      document.getElementById('qty-minus').onclick = () => { qty = Math.max(1, qty - 1); show(); };
+      document.getElementById('qty-plus').onclick = () => { qty = Math.min(Math.min(10, p.stock), qty + 1); show(); };
+      document.getElementById('add-to-cart').onclick = () => MM.addToCart(p, qty);
+      document.getElementById('buy-now').onclick = () => { MM.addToCart(p, qty); location.href = 'checkout.html'; };
+
+      document.querySelectorAll('[role=tab]').forEach(t => t.addEventListener('click', () => {
+        document.querySelectorAll('[role=tab]').forEach(x => { x.classList.toggle('on', x === t); x.setAttribute('aria-selected', String(x === t)); });
+        document.querySelectorAll('[role=tabpanel]').forEach(pn => pn.hidden = pn.id !== t.getAttribute('aria-controls'));
+      }));
+      document.getElementById('review-form').addEventListener('submit', e => {
+        e.preventDefault();
+        if (!document.querySelector('input[name=rating]:checked')) { MM.toast('⚠️ Pick a star rating first', 2500, { kind: 'bad' }); return; }
+        e.target.innerHTML = '<div class="alert ok"><span class="ico">✅</span><div><b>Thanks for your review</b>It will appear after moderation.</div></div>';
+      });
+
+      // Reviews come from the GraphQL API (two operations)
+      const [sum, rev] = await Promise.all([
+        gql('GetRatingSummary', 'query GetRatingSummary($productId: ID!) { ratingSummary(productId: $productId) { average count breakdown } }', p.id),
+        gql('GetReviews', 'query GetReviews($productId: ID!) { reviews(productId: $productId) { id author rating text date verified } }', p.id)
+      ]);
+      const s = sum.data?.data?.ratingSummary;
+      document.getElementById('rating-summary').innerHTML = s && s.count ? `<div class="bars">${[5, 4, 3, 2, 1].map(n => `<div><span>${n} ★</span><i><b style="width:${Math.round(s.breakdown[n] / s.count * 100)}%"></b></i><span>${s.breakdown[n]}</span></div>`).join('')}</div>` : 'No ratings yet.';
+      const list = rev.data?.data?.reviews || [];
+      document.getElementById('review-list').innerHTML = list.map(x => `<div class="review"><b>${MM.esc(x.author)}</b>${'★'.repeat(x.rating)}${'☆'.repeat(5 - x.rating)} <span class="muted">${x.date}${x.verified ? ' · Verified buyer' : ''}</span><div>${MM.esc(x.text)}</div></div>`).join('') || '<p class="muted">Be the first to review this product.</p>';
+
+      const rec = await MM.api('/recommendations?exclude=' + p.id);
+      document.getElementById('also-like').innerHTML = rec.ok ? rec.data.items.slice(0, 4).map(x => `
+        <article class="product"><div class="thumb" style="${MM.thumbBg(x.colors)}">${MM.thumbArt(x)}</div>
+        <div class="body"><span class="cat">${MM.esc(x.category)}</span><a class="name" href="product.html?id=${x.id}">${MM.esc(x.name)}</a><div class="price"><span class="now">${MM.inr(x.price)}</span></div></div></article>`).join('') : '';
+    })();
+  </script>
+</body>
+</html>

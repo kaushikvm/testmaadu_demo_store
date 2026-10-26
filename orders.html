@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>My orders | testmaadu.mart demo store</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+  <main>
+    <div class="container">
+      <div class="page-head">
+        <div><h1>My orders</h1><p id="orders-sub">Track and manage your orders.</p></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <input type="search" id="order-search" placeholder="Search by order ID or product" aria-label="Search orders" style="width:260px">
+          <select id="order-range" aria-label="Time range" style="width:170px">
+            <option value="all">All time</option>
+            <option value="today">Today</option>
+            <option value="30">Last 30 days</option>
+            <option value="180">Last 6 months</option>
+          </select>
+          <div class="view-switch" role="group" aria-label="View">
+            <button type="button" id="view-cards" aria-pressed="true">Cards</button>
+            <button type="button" id="view-table" aria-pressed="false">Table view</button>
+          </div>
+        </div>
+      </div>
+      <div id="orders-root"><div class="skeleton" style="height:160px"></div></div>
+    </div>
+  </main>
+  <script src="assets/app.js"></script>
+  <script>
+    MM.header('orders');
+    MM.footer();
+    const root = document.getElementById('orders-root');
+    let all = [];
+    let view = sessionStorage.getItem('mm_orders_view') || 'cards';
+    let sortKey = 'placedAt', sortDir = 'desc', page = 1;
+    const PER_PAGE = 10;
+    const selected = new Set();
+
+    async function init() {
+      if (!MM.loggedIn()) {
+        root.innerHTML = `<div class="card empty"><div class="big">📦</div><h2>Sign in to see your orders</h2><a class="btn btn-primary" href="profile.html?next=orders.html">Sign in</a></div>`;
+        return;
+      }
+      const r = await MM.api('/orders', { auth: true });
+      if (r.status === 401) { location.href = 'profile.html?next=orders.html'; return; }
+      const server = r.ok ? r.data.items : [];
+      const email = MM.user().email;
+      const byId = new Map();
+      [...server, ...MM.localOrders().filter(o => !o.owner || o.owner === email)].forEach(o => { if (!byId.has(o.id)) byId.set(o.id, o); });
+      all = [...byId.values()].sort((a, b) => b.placedAt.localeCompare(a.placedAt));
+      render();
+    }
+
+    function render() {
+      const q = document.getElementById('order-search').value.trim().toLowerCase();
+      const range = document.getElementById('order-range').value;
+      const now = Date.now();
+      const list = all.filter(o =>
+        (!q || o.id.toLowerCase().includes(q) || o.items.some(i => i.name.toLowerCase().includes(q))) &&
+        (range === 'all' || (range === 'today' ? new Date(o.placedAt).toDateString() === new Date().toDateString() : now - new Date(o.placedAt) < Number(range) * 864e5)));
+      document.getElementById('view-cards').setAttribute('aria-pressed', String(view === 'cards'));
+      document.getElementById('view-table').setAttribute('aria-pressed', String(view === 'table'));
+      document.getElementById('orders-sub').textContent = `${all.length} order${all.length === 1 ? '' : 's'} placed.`;
+      if (!all.length) { root.innerHTML = `<div class="card empty" id="no-orders"><div class="big">📦</div><h2>No orders yet</h2><p class="muted">Orders you place will show up here.</p><a class="btn btn-primary" href="index.html">Start shopping</a></div>`; return; }
+      if (!list.length) { root.innerHTML = `<div class="card empty"><div class="big">🔎</div><h2>No orders match</h2></div>`; return; }
+      if (view === 'table') return renderTable(list);
+      root.innerHTML = list.slice(0, 15).map(o => `
+        <article class="card order" data-order-id="${o.id}">
+          <div class="order-head">
+            <div><div class="k">Order placed</div><div class="v">${new Date(o.placedAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</div></div>
+            <div><div class="k">Total</div><div class="v">${MM.inr(o.totals.total)}</div></div>
+            <div><div class="k">Ship to</div><div class="v">${MM.esc(o.address.fullName)}</div></div>
+            <div class="right"><span class="status ${o.status}">● ${o.status}</span><span class="muted" style="font-weight:600">#${o.id}</span></div>
+          </div>
+          <div class="order-body">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+              <div><b>Arriving by ${new Date(o.estimatedDelivery).toDateString()}</b><div class="muted" style="font-size:13px">${o.delivery === 'express' ? 'Express' : 'Standard'} delivery${o.giftWrap ? ' · Gift wrapped 🎁' : ''}</div></div>
+              <button class="btn btn-ghost" type="button" data-reorder="${o.id}">↻ Buy again</button>
+            </div>
+            <div class="track" aria-label="Order progress"><span class="dot on"></span><span class="bar on"></span><span class="dot on"></span><span class="bar"></span><span class="dot"></span><span class="bar"></span><span class="dot"></span></div>
+            <div class="track-labels"><span>Ordered</span><span>Packed</span><span>Shipped</span><span>Delivered</span></div>
+            <div class="order-items" style="margin-top:14px">
+              ${o.items.map(i => `<div class="order-item"><span class="mini">${i.emoji}</span><div><b>${MM.esc(i.name)}</b><div class="muted">Qty ${i.qty} · ${MM.inr(i.lineTotal)}</div></div></div>`).join('')}
+            </div>
+            <details class="more">
+              <summary>View order details ▾</summary>
+              <div class="detail-grid">
+                <div class="box"><h4>Delivery address</h4>${MM.esc(o.address.fullName)}<br>${MM.esc(o.address.line1)}${o.address.line2 ? '<br>' + MM.esc(o.address.line2) : ''}<br>${MM.esc(o.address.city)}, ${MM.esc(o.address.state)} ${MM.esc(o.address.pincode)}<br>📞 ${MM.esc(o.address.phone)}</div>
+                <div class="box"><h4>Payment</h4>${o.payment.method === 'card' ? 'Card •••• ' + o.payment.cardLast4 : o.payment.method === 'upi' ? 'UPI ' + MM.esc(o.payment.upiId) : 'Cash on delivery'}<br><span class="muted">Txn ${o.payment.transactionId}</span></div>
+                <div class="box"><h4>Price details</h4>
+                  Subtotal ${MM.inr(o.totals.subtotal)}<br>${o.totals.discount ? `Discount −${MM.inr(o.totals.discount)}${o.coupon ? ' (' + o.coupon.code + ')' : ''}<br>` : ''}Delivery ${o.totals.shipping ? MM.inr(o.totals.shipping) : 'FREE'}<br>GST ${MM.inr(o.totals.tax)}<br><b>Total ${MM.inr(o.totals.total)}</b></div>
+              </div>
+            </details>
+          </div>
+        </article>`).join('');
+    }
+
+    // ---- Table view: sortable headers, 10 rows a page, row checkboxes, actions per row
+    const COLS = [['id', 'Order ID'], ['placedAt', 'Date'], ['itemCount', 'Items', 'num'], ['total', 'Total', 'num'], ['status', 'Status']];
+    const val = (o, k) => k === 'total' ? o.totals.total : o[k];
+    function renderTable(list) {
+      list = [...list].sort((a, b) => { const x = val(a, sortKey), y = val(b, sortKey); return (x > y ? 1 : x < y ? -1 : 0) * (sortDir === 'asc' ? 1 : -1); });
+      const pages = Math.max(1, Math.ceil(list.length / PER_PAGE));
+      page = Math.min(page, pages);
+      const rows = list.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+      root.innerHTML = `
+        <div class="table-wrap"><table class="data" id="orders-table">
+          <caption class="sr">My orders</caption>
+          <thead><tr>
+            <th scope="col"><input type="checkbox" id="select-all" aria-label="Select all orders on this page"></th>
+            ${COLS.map(([k, label, cls]) => `<th scope="col" class="${cls || ''}" aria-sort="${sortKey === k ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}"><button type="button" class="sort" data-sort="${k}">${label}</button></th>`).join('')}
+            <th scope="col">Actions</th>
+          </tr></thead>
+          <tbody>${rows.map(o => `
+            <tr data-order-id="${o.id}">
+              <td><input type="checkbox" data-select="${o.id}" aria-label="Select order ${o.id}" ${selected.has(o.id) ? 'checked' : ''}></td>
+              <th scope="row">${o.id}</th>
+              <td>${new Date(o.placedAt).toLocaleDateString('en-IN', { dateStyle: 'medium' })}</td>
+              <td class="num">${o.itemCount}</td>
+              <td class="num">${MM.inr(o.totals.total)}</td>
+              <td><span class="status ${o.status}">${o.status}</span></td>
+              <td><div class="row-actions">
+                <button type="button" class="btn btn-ghost btn-sm" data-view="${o.id}">View</button>
+                <button type="button" class="btn btn-ghost btn-sm" data-return="${o.id}" ${o.status === 'Delivered' ? '' : 'disabled'}>Return</button>
+                <button type="button" class="btn btn-ghost btn-sm" data-invoice="${o.id}">Invoice</button>
+              </div></td>
+            </tr>`).join('')}</tbody>
+        </table></div>
+        <div class="pager">
+          <span id="selected-count">${selected.size} selected · ${list.length} orders</span>
+          <div class="pages" role="navigation" aria-label="Pages">
+            <button type="button" class="btn btn-ghost btn-sm" data-page="${page - 1}" ${page === 1 ? 'disabled' : ''} aria-label="Previous page">‹ Prev</button>
+            ${Array.from({ length: pages }, (_, i) => `<button type="button" class="btn btn-ghost btn-sm" data-page="${i + 1}" ${i + 1 === page ? 'aria-current="page"' : ''}>${i + 1}</button>`).join('')}
+            <button type="button" class="btn btn-ghost btn-sm" data-page="${page + 1}" ${page === pages ? 'disabled' : ''} aria-label="Next page">Next ›</button>
+          </div>
+        </div>`;
+    }
+    const orderById = id => all.find(o => o.id === id);
+    const detailHtml = o => `
+      <dl class="kv"><dt>Order ID</dt><dd>${o.id}</dd><dt>Placed</dt><dd>${new Date(o.placedAt).toLocaleString('en-IN')}</dd><dt>Status</dt><dd>${o.status}</dd><dt>Ship to</dt><dd>${MM.esc(o.address.fullName)}, ${MM.esc(o.address.city)}</dd></dl>
+      ${o.items.map(i => `<div class="line" style="display:flex;justify-content:space-between"><span>${i.emoji} ${MM.esc(i.name)} × ${i.qty}</span><b>${MM.inr(i.lineTotal)}</b></div>`).join('')}
+      <div style="display:flex;justify-content:space-between;margin-top:8px"><b>Total</b><b>${MM.inr(o.totals.total)}</b></div>`;
+    document.getElementById('view-cards').onclick = () => { view = 'cards'; sessionStorage.setItem('mm_orders_view', view); render(); };
+    document.getElementById('view-table').onclick = () => { view = 'table'; sessionStorage.setItem('mm_orders_view', view); render(); };
+    root.addEventListener('change', e => {
+      if (e.target.id === 'select-all') { root.querySelectorAll('[data-select]').forEach(c => { c.checked = e.target.checked; e.target.checked ? selected.add(c.dataset.select) : selected.delete(c.dataset.select); }); }
+      const c = e.target.closest('[data-select]'); if (c) c.checked ? selected.add(c.dataset.select) : selected.delete(c.dataset.select);
+      const n = document.getElementById('selected-count'); if (n) n.textContent = n.textContent.replace(/^\d+ selected/, selected.size + ' selected');
+    });
+    root.addEventListener('click', async e => {
+      const s = e.target.closest('[data-sort]');
+      if (s) { const k = s.dataset.sort; sortDir = sortKey === k && sortDir === 'asc' ? 'desc' : 'asc'; sortKey = k; return render(); }
+      const pg = e.target.closest('[data-page]'); if (pg) { page = Number(pg.dataset.page); return render(); }
+      const v = e.target.closest('[data-view]'); if (v) { MM.dialog({ title: 'Order ' + v.dataset.view, html: detailHtml(orderById(v.dataset.view)), id: 'order-dialog' }); return; }
+      const inv = e.target.closest('[data-invoice]');
+      if (inv) { const o = orderById(inv.dataset.invoice); MM.dialog({ title: 'Tax invoice', id: 'invoice-dialog', html: `<p class="muted">testmaadu.mart Retail Pvt Ltd (demo) · GSTIN 29ABCDE1234F1Z5</p>${detailHtml(o)}<p class="muted" style="margin-top:10px">Includes GST ${MM.inr(o.totals.tax)}</p>` }); return; }
+      const ret = e.target.closest('[data-return]');
+      if (ret) {
+        const o = orderById(ret.dataset.return);
+        const done = await MM.dialog({ title: 'Return items', id: 'return-dialog', html: `
+          <p class="muted">Order ${o.id}</p>
+          <label class="field"><span>Reason</span><select id="return-reason"><option value="">Choose a reason</option><option>Damaged item</option><option>Wrong item sent</option><option>Size or fit issue</option><option>No longer needed</option></select></label>
+          <label class="field"><span>Photo of the item (JPG or PNG)</span><input type="file" id="return-photo" accept="image/png,image/jpeg"></label>
+          <label class="field"><span>Comments</span><textarea id="return-notes" rows="2"></textarea></label>
+          <div class="err-text" id="return-error">Choose a reason and add a photo.</div>`,
+          actions: [{ label: 'Cancel', value: false }, { label: 'Request return', value: true, check: w => { const ok = w.querySelector('#return-reason').value && w.querySelector('#return-photo').files.length; w.querySelector('#return-error').style.display = ok ? 'none' : 'block'; return ok; } }] });
+        if (done) MM.toast('Return requested. Pickup in 2 days.', 3000);
+        return;
+      }
+      const b = e.target.closest('[data-reorder]'); if (!b) return;
+      const o = all.find(x => x.id === b.dataset.reorder);
+      const c = MM.cart();
+      for (const i of o.items) { const l = c.find(x => x.productId === i.productId); if (l) l.qty = Math.min(10, l.qty + i.qty); else c.push({ productId: i.productId, qty: i.qty, name: i.name, emoji: i.emoji, price: i.price, colors: ['#e0e7ff', '#a5b4fc'] }); }
+      MM.saveCart(c);
+      MM.toast('Items added to cart. <a href="cart.html">View cart</a>');
+    });
+    document.getElementById('order-search').addEventListener('input', () => { page = 1; render(); });
+    document.getElementById('order-range').addEventListener('change', () => { page = 1; render(); });
+    init();
+  </script>
+</body>
+</html>

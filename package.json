@@ -1,0 +1,8 @@
+{
+  "name": "testmaadu-mart-demo-store",
+  "version": "1.0.0",
+  "private": true,
+  "description": "testmaadu.mart: demo ecommerce store for TestMaadu demos (functional, E2E and API testing).",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=18" }
+}

@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Market | testmaadu.mart demo store</title>
+  <meta name="description" content="testmaadu.mart is a demo ecommerce store for practising functional, E2E, API, performance and security testing. Created by TestMaadu.in">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+  <main>
+    <div class="container">
+      <section class="hero">
+        <span class="chip" style="background:rgba(255,255,255,.18);color:#fff;margin-bottom:12px">🔥 Festive sale is live</span>
+        <h1>Everything you need, at prices you will love.</h1>
+        <p>Browse hand-picked products, add a few to your cart and check out in under a minute.</p>
+        <span class="coupon">Extra 10% off with <code>TESTMAADU10</code></span>
+        <span class="deal" id="deal-timer" aria-live="off">⏱ Deal ends in <time id="deal-countdown">--:--:--</time></span>
+        <div class="hero-art" aria-hidden="true">🎧👟☕</div>
+      </section>
+
+      <div class="market">
+        <aside class="card filters" aria-label="Filters">
+          <h3>Category</h3>
+          <label class="field" style="margin:0"><span class="sr">Category</span>
+            <select id="category" name="category" data-testid="category-filter">
+              <option value="All">All categories</option>
+            </select>
+          </label>
+
+          <h3>Max price</h3>
+          <label class="field" style="margin:0"><span class="sr">Maximum price</span>
+            <input type="range" id="max-price" name="maxPrice" min="500" max="5000" step="100" value="5000" aria-valuetext="Up to ₹5,000">
+          </label>
+          <div class="range-row"><span>₹500</span><b id="max-price-label">Up to ₹5,000</b></div>
+
+          <h3>Refine</h3>
+          <label class="check"><input type="checkbox" id="in-stock" name="inStock"> In stock only</label>
+          <label class="check"><input type="checkbox" id="free-delivery" name="freeDelivery"> Free delivery</label>
+          <label class="check"><input type="checkbox" id="top-rated" name="topRated"> 4★ and above</label>
+
+          <h3>Sort by</h3>
+          <div role="radiogroup" aria-label="Sort by">
+            <label class="radio"><input type="radio" name="sort" value="popular" checked> Popularity</label>
+            <label class="radio"><input type="radio" name="sort" value="price-asc"> Price: low to high</label>
+            <label class="radio"><input type="radio" name="sort" value="price-desc"> Price: high to low</label>
+            <label class="radio"><input type="radio" name="sort" value="rating"> Customer rating</label>
+          </div>
+          <div class="divider"></div>
+          <button class="btn btn-ghost btn-block" id="clear-filters" type="button">Clear filters</button>
+        </aside>
+
+        <section>
+          <div class="toolbar">
+            <div class="catmenu">
+              <button class="btn btn-ghost" type="button" id="shop-by-category" aria-haspopup="true">☰ Shop by category ▾</button>
+              <div class="menu" role="menu" aria-label="Shop by category" id="category-menu"></div>
+            </div>
+            <div class="searchbox">
+              <input type="search" id="search" name="q" placeholder="Search for headphones, books, shoes..." aria-label="Search products" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="search-suggestions" aria-autocomplete="list">
+              <ul class="suggest" id="search-suggestions" role="listbox" aria-label="Search suggestions" hidden></ul>
+            </div>
+          </div>
+          <div class="result-count" id="result-count">Loading products...</div>
+          <div class="grid" id="product-grid">
+            <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
+          </div>
+
+          <section class="recs" aria-labelledby="recs-title">
+            <h2 id="recs-title">Recommended for you</h2>
+            <div class="grid" id="recommendations"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
+          </section>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <script src="assets/app.js"></script>
+  <script>
+    MM.header('market');
+    MM.footer();
+    const params = new URLSearchParams(location.search);
+    const el = id => document.getElementById(id);
+    let timer, suggestTimer, products = [];
+
+    // Deal of the day: counts down to midnight
+    (function tick() {
+      const now = new Date(), end = new Date(now); end.setHours(24, 0, 0, 0);
+      const s = Math.floor((end - now) / 1000);
+      el('deal-countdown').textContent = [s / 3600, (s % 3600) / 60, s % 60].map(n => String(Math.floor(n)).padStart(2, '0')).join(':');
+      setTimeout(tick, 1000);
+    })();
+
+    (async () => {
+      const r = await MM.api('/categories');
+      if (r.ok) {
+        el('category').insertAdjacentHTML('beforeend', r.data.map(c => `<option value="${c}">${c}</option>`).join(''));
+        el('category-menu').innerHTML = r.data.map(c => `<a role="menuitem" href="index.html?category=${c}">${c}</a>`).join('');
+      }
+      if (params.get('category')) el('category').value = params.get('category');
+      load();
+      recommendations();
+    })();
+
+    const card = p => {
+      const id = MM.rid(); // a new random id on every page load (do not use it as a locator)
+      const chip = p.isNew ? '<span class="chip new tag">New</span>'
+        : p.stock === 0 ? '<span class="chip bad tag">Out of stock</span>'
+        : p.stock < 10 ? `<span class="chip accent tag">Only ${p.stock} left</span>`
+        : p.freeDelivery ? '<span class="chip ok tag has-tip" tabindex="0">Free delivery<span class="tip" role="tooltip">Delivered free in 4 to 5 days. Express delivery costs ₹99 extra.</span></span>' : '';
+      return `
+        <article class="product" data-product-id="${p.id}" id="card-${id}">
+          <div class="thumb" style="${MM.thumbBg(p.colors)}">
+            ${chip}
+            <button class="wish" type="button" title="Add to wishlist" aria-label="Wishlist ${MM.esc(p.name)}" data-wish="${p.id}">${MM.wishlist().includes(p.id) ? '❤️' : '🤍'}</button>
+            ${MM.thumbArt(p)}
+            <button class="btn btn-ghost quick" type="button" data-quick="${p.id}">Quick view</button>
+          </div>
+          <div class="body">
+            <span class="cat">${MM.esc(p.category)}</span>
+            <a class="name" href="product.html?id=${p.id}">${MM.esc(p.name)}</a>
+            <div>${p.isNew ? '<span class="rating">No ratings yet</span>' : `${MM.stars(p.rating)} <span class="rating">(${p.reviews.toLocaleString('en-IN')})</span>`}</div>
+            <div class="price"><span class="now">${MM.inr(p.price)}</span>${p.mrp > p.price ? `<span class="mrp">${MM.inr(p.mrp)}</span><span class="off">${MM.pct(p)}% off</span>` : ''}</div>
+            <div class="actions">
+              <button class="btn btn-primary add-to-cart" id="btn-${id}" type="button" data-add="${p.id}" ${p.stock === 0 ? 'disabled' : ''}>${p.stock === 0 ? 'Sold out' : 'Add to cart'}</button>
+            </div>
+          </div>
+        </article>`;
+    };
+
+    async function load() {
+      const q = new URLSearchParams();
+      const text = el('search').value.trim();
+      if (text) q.set('q', text);
+      if (el('category').value !== 'All') q.set('category', el('category').value);
+      if (el('in-stock').checked) q.set('inStock', 'true');
+      if (el('free-delivery').checked) q.set('freeDelivery', 'true');
+      if (el('top-rated').checked) q.set('minRating', '4');
+      if (Number(el('max-price').value) < 5000) q.set('maxPrice', el('max-price').value);
+      q.set('sort', document.querySelector('input[name=sort]:checked').value);
+      el('result-count').textContent = 'Loading products...';
+      el('product-grid').innerHTML = '<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>';
+      const r = await MM.api('/products?' + q.toString());
+      if (r.status === 500) return; // DEMO BUG: a server error leaves the page on "Loading products..." with no message
+      if (r.status === 429) { el('result-count').textContent = ''; el('product-grid').innerHTML = `<div class="alert warn" style="grid-column:1/-1"><span class="ico">⏳</span><div><b>Too many searches</b>${MM.esc(r.data?.message)}</div></div>`; return; }
+      if (!r.ok) { el('product-grid').innerHTML = `<div class="alert bad"><span class="ico">⚠️</span><div><b>Could not load products</b>${MM.esc(r.data?.message)}</div></div>`; return; }
+      const maxPrice = Number(el('max-price').value);
+      const cat = el('category').value;
+      const items = MM.withMyProducts(r.data.items, p => (!text || p.name.toLowerCase().includes(text.toLowerCase())) && (cat === 'All' || p.category === cat) && p.price <= maxPrice && (!el('in-stock').checked || p.stock > 0));
+      products = items;
+      el('result-count').textContent = `Showing ${items.length} product${items.length === 1 ? '' : 's'}`;
+      if (!items.length) { el('product-grid').innerHTML = `<div class="card empty" style="grid-column:1/-1"><div class="big">🔎</div><h2>No products match</h2><p class="muted">Try a different search or clear the filters.</p></div>`; return; }
+      el('product-grid').innerHTML = items.map(card).join('');
+    }
+
+    // "Recommended for you" arrives late (the API can take up to 3 seconds)
+    async function recommendations() {
+      const r = await MM.api('/recommendations');
+      if (!r.ok) { el('recommendations').innerHTML = '<p class="muted">Recommendations are not available right now.</p>'; return; }
+      window._recs = r.data.items;
+      el('recommendations').innerHTML = r.data.items.map(card).join('');
+    }
+
+    const findP = id => products.find(x => x.id === id) || (window._recs || []).find(x => x.id === id);
+    document.querySelector('main').addEventListener('click', async e => {
+      const add = e.target.closest('[data-add]');
+      if (add) { MM.addToCart(findP(add.dataset.add)); add.textContent = 'Added ✓'; setTimeout(() => add.textContent = 'Add to cart', 1200); return; }
+      const w = e.target.closest('[data-wish]');
+      if (w) {
+        const p = findP(w.dataset.wish);
+        // DEMO BUG: the wishlist heart crashes for sold-out products (TypeError in the console, heart stays grey)
+        if (p.stock === 0 && !p.backInStock.notify) return;
+        const on = MM.toggleWish(p.id); w.textContent = on ? '❤️' : '🤍'; MM.toast(on ? 'Saved to wishlist' : 'Removed from wishlist', 1600);
+        return;
+      }
+      const qv = e.target.closest('[data-quick]');
+      if (qv) {
+        const p = findP(qv.dataset.quick);
+        const go = await MM.dialog({ title: MM.esc(p.name), wide: true, id: 'quick-view', html: `
+          <div class="qv"><div class="thumb" style="${MM.thumbBg(p.colors)};font-size:90px">${MM.thumbArt(p)}</div>
+          <div><span class="chip brand">${MM.esc(p.category)}</span><p>${MM.esc(p.description || '')}</p>
+          <div class="price"><span class="now">${MM.inr(p.price)}</span>${p.mrp > p.price ? `<span class="mrp">${MM.inr(p.mrp)}</span>` : ''}</div>
+          <p class="muted">${p.stock === 0 ? 'Out of stock' : p.stock + ' in stock'} · Product ID ${p.id}</p></div></div>`,
+          actions: [{ label: 'View details', value: 'details' }, ...(p.stock ? [{ label: 'Add to cart', value: 'add' }] : [])] });
+        if (go === 'add') MM.addToCart(p);
+        if (go === 'details') location.href = 'product.html?id=' + p.id;
+      }
+    });
+
+    // Search suggestions (listbox under the search box, arrow keys + Enter)
+    const box = el('search-suggestions');
+    let active = -1;
+    function closeSuggest() { box.hidden = true; el('search').setAttribute('aria-expanded', 'false'); active = -1; }
+    el('search').addEventListener('input', () => {
+      clearTimeout(timer); timer = setTimeout(load, 400);
+      clearTimeout(suggestTimer);
+      suggestTimer = setTimeout(async () => {
+        const text = el('search').value.trim();
+        if (text.length < 2) return closeSuggest();
+        const r = await MM.api('/search/suggest?q=' + encodeURIComponent(text));
+        if (!r.ok || !r.data.length) return closeSuggest();
+        box.innerHTML = r.data.map((s, i) => `<li role="option" id="sugg-${i}" data-id="${s.id}" aria-selected="false">${s.emoji} ${MM.esc(s.name)} <small>${s.category}</small></li>`).join('');
+        box.hidden = false; el('search').setAttribute('aria-expanded', 'true');
+      }, 150);
+    });
+    el('search').addEventListener('keydown', e => {
+      const items = [...box.querySelectorAll('li')];
+      if (box.hidden || !items.length) return;
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        active = (active + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+        items.forEach((li, i) => li.setAttribute('aria-selected', String(i === active)));
+        el('search').setAttribute('aria-activedescendant', items[active].id);
+      } else if (e.key === 'Enter' && active >= 0) { e.preventDefault(); location.href = 'product.html?id=' + items[active].dataset.id; }
+      else if (e.key === 'Escape') closeSuggest();
+    });
+    box.addEventListener('mousedown', e => { const li = e.target.closest('li'); if (li) location.href = 'product.html?id=' + li.dataset.id; });
+    el('search').addEventListener('blur', () => setTimeout(closeSuggest, 150));
+
+    el('max-price').addEventListener('input', () => { const t = 'Up to ' + MM.inr(el('max-price').value); el('max-price-label').textContent = t; el('max-price').setAttribute('aria-valuetext', t); });
+    el('max-price').addEventListener('change', load);
+    ['category', 'in-stock', 'free-delivery', 'top-rated'].forEach(id => el(id).addEventListener('change', load));
+    document.querySelectorAll('input[name=sort]').forEach(r => r.addEventListener('change', load));
+    el('clear-filters').addEventListener('click', () => {
+      el('search').value = ''; el('category').value = 'All'; el('max-price').value = 5000; el('max-price-label').textContent = 'Up to ₹5,000';
+      ['in-stock', 'free-delivery', 'top-rated'].forEach(id => el(id).checked = false);
+      document.querySelector('input[name=sort][value=popular]').checked = true;
+      load();
+    });
+//# sourceMappingURL=assets/market.js.map
+  </script>
+</body>
+</html>

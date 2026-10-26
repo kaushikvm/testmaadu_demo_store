@@ -1,0 +1,1 @@
+{"version":3,"file":"market.js","sources":["../src/market/index.ts","../src/market/filters.ts"],"sourcesContent":["// Market page. TODO(dev): remove the debug flag before go-live\nexport const DEBUG_API = 'https://staging-api.onlinemart.test/v1';\n","// Filters\nexport function load() {}\n"],"names":[],"mappings":"AAAA"}

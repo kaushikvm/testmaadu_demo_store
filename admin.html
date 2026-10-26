@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin | testmaadu.mart demo store</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+  <main><div class="container" id="admin-root"></div></main>
+  <script src="assets/app.js"></script>
+  <script>
+    MM.header('admin');
+    MM.footer();
+    const root = document.getElementById('admin-root');
+    const CATS = ['Electronics', 'Fashion', 'Home', 'Books', 'Sports'];
+    let tab = new URLSearchParams(location.search).get('tab') === 'orders' ? 'orders' : 'products';
+    let products = [];
+
+    function init() {
+      if (!MM.loggedIn()) {
+        root.innerHTML = `<div class="card denied"><div class="big">🔐</div><h1>Admin sign in</h1><p class="muted">Sign in with the admin demo account to add and edit products.</p><a class="btn btn-primary" id="admin-signin" href="profile.html?next=admin.html">Sign in as admin</a></div>`;
+        return;
+      }
+      if (!MM.isAdmin()) {
+        root.innerHTML = `<div class="card denied" id="access-denied" role="alert"><div class="big">⛔</div><h1>You need admin access</h1><p class="muted">You are signed in as <b>${MM.esc(MM.user().email)}</b> (customer). Only admins can manage products.</p><a class="btn btn-ghost" href="index.html">Back to market</a></div>`;
+        return;
+      }
+      root.innerHTML = `
+        <div class="page-head"><div><h1>Store admin <span class="role-pill">Admin</span></h1><p>Add products here, then sign in as the customer to buy them.</p></div>
+          <button class="btn btn-accent" id="add-product" type="button">＋ Add product</button></div>
+        <div class="tabs" role="tablist" aria-label="Admin sections">
+          <button type="button" role="tab" id="tab-products" aria-selected="${tab === 'products'}" class="${tab === 'products' ? 'on' : ''}">Products</button>
+          <button type="button" role="tab" id="tab-orders" aria-selected="${tab === 'orders'}" class="${tab === 'orders' ? 'on' : ''}">All orders</button>
+        </div>
+        <div id="admin-panel"></div>`;
+      document.getElementById('add-product').onclick = () => productForm();
+      document.getElementById('tab-products').onclick = () => switchTab('products');
+      document.getElementById('tab-orders').onclick = () => switchTab('orders');
+      document.getElementById('admin-panel').addEventListener('click', onPanelClick);
+      switchTab(tab);
+    }
+    function switchTab(t) {
+      tab = t;
+      history.replaceState(null, '', t === 'orders' ? 'admin.html?tab=orders' : 'admin.html');
+      document.querySelectorAll('[role=tab]').forEach(b => { const on = b.id === 'tab-' + t; b.classList.toggle('on', on); b.setAttribute('aria-selected', String(on)); });
+      t === 'orders' ? loadOrders() : loadProducts();
+    }
+
+    async function loadProducts() {
+      const panel = document.getElementById('admin-panel');
+      const r = await MM.api('/products?sort=popular');
+      products = MM.withMyProducts(r.ok ? r.data.items : []);
+      panel.innerHTML = `
+        <div class="table-wrap"><table class="data" id="products-table">
+          <caption class="sr">Products</caption>
+          <thead><tr><th scope="col">Product</th><th scope="col">ID</th><th scope="col">Category</th><th scope="col" class="num">Price</th><th scope="col" class="num">MRP</th><th scope="col" class="num">Stock</th><th scope="col">Actions</th></tr></thead>
+          <tbody>${products.map(p => `
+            <tr data-product-id="${p.id}">
+              <th scope="row">${p.image ? '🖼️' : p.emoji} ${MM.esc(p.name)} ${p.isNew ? '<span class="chip new">New</span>' : ''}</th>
+              <td>${p.id}</td><td>${MM.esc(p.category)}</td>
+              <td class="num">${MM.inr(p.price)}</td><td class="num">${MM.inr(p.mrp)}</td><td class="num">${p.stock}</td>
+              <td><div class="row-actions">
+                <button type="button" class="btn btn-ghost btn-sm" data-edit="${p.id}">Edit</button>
+                ${p.isNew ? `<button type="button" class="btn btn-ghost btn-sm" data-delete="${p.id}" style="color:var(--bad)">Delete</button>` : '<span class="muted" style="font-size:12px">built-in</span>'}
+              </div></td>
+            </tr>`).join('')}</tbody>
+        </table></div>
+        <p class="muted" style="font-size:13px">Products you add are seen only in this browser, so other visitors never see them.</p>`;
+    }
+
+    async function loadOrders() {
+      const panel = document.getElementById('admin-panel');
+      panel.innerHTML = '<div class="skeleton" style="height:120px"></div>';
+      const r = await MM.api('/admin/orders', { auth: true });
+      if (r.status === 401) { location.href = 'profile.html?next=admin.html'; return; }
+      if (!r.ok) { panel.innerHTML = `<div class="alert bad"><span class="ico">⚠️</span><div><b>Could not load orders</b>${MM.esc(r.data?.message)}</div></div>`; return; }
+      panel.innerHTML = `
+        <div class="table-wrap"><table class="data" id="admin-orders-table">
+          <caption class="sr">All orders</caption>
+          <thead><tr><th scope="col">Order ID</th><th scope="col">Customer</th><th scope="col">Date</th><th scope="col" class="num">Items</th><th scope="col" class="num">Total</th><th scope="col">Status</th></tr></thead>
+          <tbody>${r.data.items.map(o => `<tr><th scope="row">${o.id}</th><td>${MM.esc(o.owner || '')}</td><td>${new Date(o.placedAt).toLocaleDateString('en-IN', { dateStyle: 'medium' })}</td><td class="num">${o.itemCount}</td><td class="num">${MM.inr(o.totals.total)}</td><td><span class="status ${o.status}">${o.status}</span></td></tr>`).join('')}</tbody>
+        </table></div>`;
+    }
+
+    async function onPanelClick(e) {
+      const ed = e.target.closest('[data-edit]');
+      if (ed) return productForm(products.find(p => p.id === ed.dataset.edit));
+      const del = e.target.closest('[data-delete]');
+      if (del) {
+        const p = products.find(x => x.id === del.dataset.delete);
+        const ok = await MM.dialog({ title: 'Delete product?', id: 'delete-dialog', html: `<p>Delete <b>${MM.esc(p.name)}</b>? Customers will no longer see it.</p>`, actions: [{ label: 'Cancel', value: false }, { label: 'Delete', value: true, kind: 'btn-accent' }] });
+        if (!ok) return;
+        const r = await MM.api('/products/' + p.id, { method: 'DELETE', auth: true });
+        if (r.ok || r.status === 404) { MM.removeMyProduct(p.id); MM.saveCart(MM.cart().filter(l => l.productId !== p.id)); MM.toast('Product deleted', 2000); loadProducts(); }
+        else MM.toast('⚠️ ' + MM.esc(r.data?.message), 3000, { kind: 'bad' });
+      }
+    }
+
+    // Shrinks the photo to at most 480 px so it fits in the browser's storage
+    function readImage(file) {
+      return new Promise((resolve, reject) => {
+        if (!/^image\/(png|jpeg|webp|gif)$/.test(file.type)) return reject(new Error('Choose a PNG, JPG, WEBP or GIF image.'));
+        const img = new Image();
+        img.onload = () => {
+          const scale = Math.min(1, 480 / Math.max(img.width, img.height));
+          const c = document.createElement('canvas');
+          c.width = Math.round(img.width * scale); c.height = Math.round(img.height * scale);
+          c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+          URL.revokeObjectURL(img.src);
+          resolve(c.toDataURL('image/jpeg', 0.8));
+        };
+        img.onerror = () => reject(new Error('That file is not an image.'));
+        img.src = URL.createObjectURL(file);
+      });
+    }
+
+    async function productForm(p) {
+      const edit = !!p;
+      let image = p ? p.image || '' : '';
+      const v = (k, d = '') => MM.esc(p ? p[k] ?? d : d);
+      const save = async wrap => {
+        const f = id => wrap.querySelector('#' + id);
+        const body = {
+          name: f('p-name').value.trim(), category: f('p-category').value, price: Number(f('p-price').value), mrp: Number(f('p-mrp').value || f('p-price').value),
+          stock: Number(f('p-stock').value), description: f('p-description').value.trim(), freeDelivery: f('p-free').checked, image
+        };
+        const err = f('p-error');
+        const bad = !body.name ? 'Enter a product name.' : !body.category ? 'Choose a category.' : !Number.isInteger(body.price) || body.price < 1 ? 'Enter a price in whole rupees.' : !Number.isInteger(body.stock) || body.stock < 0 ? 'Enter the stock as a whole number.' : '';
+        if (bad) { err.textContent = bad; err.style.display = 'block'; return false; }
+        const r = await MM.api(edit ? '/products/' + p.id : '/products', { method: edit ? 'PUT' : 'POST', body, auth: true });
+        if (r.status === 401) { location.href = 'profile.html?next=admin.html'; return false; }
+        if (!r.ok) { err.textContent = r.data?.message || 'Could not save.'; err.style.display = 'block'; return false; }
+        if (r.data.isNew) MM.saveMyProduct({ ...r.data });
+        MM.toast(edit ? 'Product updated' : `${MM.esc(r.data.name)} added. <a href="index.html">See it in Market</a>`, 4000);
+        return true;
+      };
+      const ok = await MM.dialog({
+        title: edit ? 'Edit product' : 'Add product', id: 'product-dialog', wide: true,
+        html: `<form id="product-form" novalidate>
+          <div class="row">
+            <label class="field"><span>Product name *</span><input type="text" id="p-name" name="name" maxlength="60" value="${v('name')}" placeholder="e.g. Kids Story Book"></label>
+            <label class="field"><span>Category *</span><select id="p-category" name="category"><option value="">Choose a category</option>${CATS.map(c => `<option ${p && p.category === c ? 'selected' : ''}>${c}</option>`).join('')}</select></label>
+          </div>
+          <div class="row3">
+            <label class="field"><span>Price (₹) *</span><input type="number" id="p-price" name="price" min="1" step="1" value="${v('price')}" placeholder="999"></label>
+            <label class="field"><span>MRP (₹)</span><input type="number" id="p-mrp" name="mrp" min="1" step="1" value="${v('mrp')}" placeholder="1499"></label>
+            <label class="field"><span>Stock *</span><input type="number" id="p-stock" name="stock" min="0" step="1" value="${v('stock', 10)}"></label>
+          </div>
+          <label class="field"><span>Description</span><textarea id="p-description" name="description" maxlength="500" rows="3">${v('description')}</textarea></label>
+          <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+            <div class="img-preview" id="p-preview">${image ? `<img src="${MM.esc(image)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:12px">` : '📷'}</div>
+            <label class="field" style="margin:0;flex:1"><span>Photo (optional)</span><input type="file" id="p-image" name="image" accept="image/png,image/jpeg,image/webp,image/gif"></label>
+          </div>
+          <label class="check" style="margin-top:10px"><input type="checkbox" id="p-free" name="freeDelivery" ${p && p.freeDelivery ? 'checked' : ''}> Free delivery</label>
+          <div class="err-text" id="p-error"></div>
+        </form>`,
+        actions: [{ label: 'Cancel', value: false }, { label: edit ? 'Save changes' : 'Add product', value: true, check: save }],
+        onOpen: wrap => {
+          wrap.querySelector('#p-image').addEventListener('change', async e => {
+            const file = e.target.files[0]; if (!file) return;
+            try { image = await readImage(file); wrap.querySelector('#p-preview').innerHTML = `<img src="${image}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:12px">`; }
+            catch (err) { const el = wrap.querySelector('#p-error'); el.textContent = err.message; el.style.display = 'block'; e.target.value = ''; }
+          });
+        }
+      });
+      if (ok) loadProducts();
+    }
+
+    init();
+  </script>
+</body>
+</html>

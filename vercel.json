@@ -1,0 +1,10 @@
+{
+  "cleanUrls": false,
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "/api/index?path=:path*" }
+  ],
+  "headers": [
+    { "source": "/openapi.json", "headers": [{ "key": "Access-Control-Allow-Origin", "value": "*" }] },
+    { "source": "/(.*)", "headers": [{ "key": "X-Powered-By", "value": "Express/4.17.1" }] }
+  ]
+}

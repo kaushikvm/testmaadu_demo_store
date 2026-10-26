@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>My account | testmaadu.mart demo store</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+  <main><div class="container" id="account-root"></div></main>
+  <script src="assets/app.js"></script>
+  <script>
+    // My account is a small single-page app: the tabs change the URL (?tab=...) without reloading the page.
+    MM.header('account');
+    MM.footer();
+    const root = document.getElementById('account-root');
+    const TABS = [['overview', 'Overview'], ['addresses', 'Addresses'], ['wishlist', 'Wishlist'], ['notifications', 'Notifications']];
+    const STATES = ['Karnataka', 'Maharashtra', 'Tamil Nadu', 'Telangana', 'Delhi', 'Kerala', 'Gujarat', 'West Bengal', 'Uttar Pradesh', 'Rajasthan'];
+    const current = () => { const t = new URLSearchParams(location.search).get('tab'); return TABS.some(x => x[0] === t) ? t : 'overview'; };
+
+    if (!MM.loggedIn()) {
+      root.innerHTML = `<div class="card empty"><div class="big">👤</div><h2>Sign in to see your account</h2><a class="btn btn-primary" href="profile.html?next=account.html">Sign in</a></div>`;
+    } else {
+      const u = MM.user();
+      root.innerHTML = `
+        <div class="page-head"><div><h1>My account ${u.role === 'admin' ? '<span class="role-pill">Admin</span>' : ''}</h1><p>${MM.esc(u.email)}</p></div><button class="btn btn-ghost" id="logout-button" type="button">Sign out</button></div>
+        <div class="account">
+          <nav class="card side-tabs" aria-label="Account sections" style="padding:10px">
+            ${TABS.map(([k, label]) => `<a href="account.html?tab=${k}" data-tab="${k}">${label}</a>`).join('')}
+            <a href="profile.html">Personal details</a>
+          </nav>
+          <section class="card" id="account-view" aria-live="polite"></section>
+        </div>`;
+      document.getElementById('logout-button').onclick = MM.logout;
+      document.querySelector('.side-tabs').addEventListener('click', e => {
+        const a = e.target.closest('[data-tab]'); if (!a) return;
+        e.preventDefault();
+        history.pushState({ tab: a.dataset.tab }, '', 'account.html?tab=' + a.dataset.tab);
+        show();
+      });
+      window.addEventListener('popstate', show);
+      document.getElementById('account-view').addEventListener('click', onViewClick);
+      show();
+    }
+
+    function show() {
+      const t = current();
+      document.querySelectorAll('[data-tab]').forEach(a => a.dataset.tab === t ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current'));
+      document.title = TABS.find(x => x[0] === t)[1] + ' | My account | testmaadu.mart demo store';
+      ({ overview, addresses, wishlist, notifications })[t]();
+    }
+    function view() { return document.getElementById('account-view'); }
+
+    async function overview() {
+      view().innerHTML = '<h2>Overview</h2><div class="skeleton" style="height:90px"></div>';
+      const r = await MM.api('/auth/me', { auth: true });
+      if (r.status === 401) { MM.logout(); return; }
+      const me = r.data;
+      view().innerHTML = `<h2>Overview</h2>
+        <dl class="kv"><dt>Name</dt><dd>${MM.esc(me.name)}</dd><dt>Email</dt><dd>${MM.esc(me.email)}</dd><dt>Role</dt><dd>${me.role}</dd><dt>Signed in until</dt><dd>${new Date(me.tokenExpires).toDateString()}</dd></dl>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px"><a class="btn btn-ghost" href="orders.html">📦 My orders</a><a class="btn btn-ghost" href="account.html?tab=addresses" data-go="addresses">🏠 Addresses</a>${me.role === 'admin' ? '<a class="btn btn-accent" href="admin.html">🛠️ Store admin</a>' : ''}</div>`;
+    }
+
+    var book = [];
+    async function addresses() {
+      view().innerHTML = '<h2>Addresses</h2><div class="skeleton" style="height:90px"></div>';
+      const r = await MM.api('/addresses', { auth: true });
+      book = r.ok ? r.data.items : [];
+      view().innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><h2 style="margin:0">Addresses</h2><button class="btn btn-primary" type="button" id="add-address">＋ Add address</button></div>
+        <div class="addr" style="margin-top:14px">${book.map(a => `
+          <div class="card" data-address-id="${a.id}">
+            <b>${MM.esc(a.label)}</b> ${a.isDefault ? '<span class="chip ok">Default</span>' : ''}
+            <p style="margin:6px 0">${MM.esc(a.fullName)}<br>${MM.esc(a.line1)}${a.line2 ? ', ' + MM.esc(a.line2) : ''}<br>${MM.esc(a.city)}, ${MM.esc(a.state)} ${MM.esc(a.pincode)}<br>📞 ${MM.esc(a.phone)}</p>
+            <div class="row-actions"><button class="btn btn-ghost btn-sm" type="button" data-edit-address="${a.id}">Edit</button>${a.isDefault ? '' : `<button class="btn btn-ghost btn-sm" type="button" data-default-address="${a.id}">Make default</button>`}<button class="btn btn-ghost btn-sm" type="button" data-delete-address="${a.id}" style="color:var(--bad)">Delete</button></div>
+          </div>`).join('') || '<p class="muted">No saved addresses.</p>'}</div>`;
+    }
+    async function addressForm(a) {
+      const v = k => MM.esc(a ? a[k] || '' : '');
+      const save = async wrap => {
+        const f = id => wrap.querySelector('#' + id).value.trim();
+        const body = { label: f('a-label'), fullName: f('a-name'), phone: f('a-phone'), line1: f('a-line1'), line2: f('a-line2'), city: f('a-city'), state: f('a-state'), pincode: f('a-pincode') };
+        const r = await MM.api(a ? '/addresses/' + a.id : '/addresses', { method: a ? 'PUT' : 'POST', body, auth: true });
+        if (!r.ok) { const e = wrap.querySelector('#a-error'); e.textContent = r.data?.message; e.style.display = 'block'; return false; }
+        return true;
+      };
+      const ok = await MM.dialog({ title: a ? 'Edit address' : 'Add address', id: 'address-dialog', html: `
+        <div class="row"><label class="field"><span>Label</span><input type="text" id="a-label" value="${v('label') || 'Home'}"></label><label class="field"><span>Full name *</span><input type="text" id="a-name" value="${v('fullName')}"></label></div>
+        <div class="row"><label class="field"><span>Mobile *</span><input type="tel" id="a-phone" value="${v('phone')}"></label><label class="field"><span>PIN code *</span><input type="text" id="a-pincode" inputmode="numeric" maxlength="6" value="${v('pincode')}"></label></div>
+        <label class="field"><span>Address line 1 *</span><input type="text" id="a-line1" value="${v('line1')}"></label>
+        <label class="field"><span>Address line 2</span><input type="text" id="a-line2" value="${v('line2')}"></label>
+        <div class="row"><label class="field"><span>City *</span><input type="text" id="a-city" value="${v('city')}"></label><label class="field"><span>State *</span><select id="a-state"><option value="">Select state</option>${STATES.map(s => `<option ${a && a.state === s ? 'selected' : ''}>${s}</option>`).join('')}</select></label></div>
+        <div class="err-text" id="a-error"></div>`,
+        actions: [{ label: 'Cancel', value: false }, { label: 'Save address', value: true, check: save }] });
+      if (ok) { MM.toast('Address saved', 2000); addresses(); }
+    }
+
+    async function wishlist() {
+      view().innerHTML = '<h2>Wishlist</h2><div class="skeleton" style="height:90px"></div>';
+      const r = await MM.api('/wishlist', { auth: true });
+      const items = r.ok ? r.data.items : [];
+      view().innerHTML = `<h2>Wishlist</h2>${items.length ? `<div class="grid">${items.map(p => `
+        <article class="product"><div class="thumb" style="${MM.thumbBg(p.colors)}">${MM.thumbArt(p)}</div>
+        <div class="body"><a class="name" href="product.html?id=${p.id}">${MM.esc(p.name)}</a><div class="price"><span class="now">${MM.inr(p.price)}</span></div>
+        <div class="actions"><button class="btn btn-ghost" type="button" data-unwish="${p.id}">Remove</button></div></div></article>`).join('')}</div>` : '<p class="muted">Tap the heart on a product in Market to save it here.</p>'}`;
+    }
+
+    async function notifications() {
+      view().innerHTML = '<h2>Notifications</h2><div class="skeleton" style="height:90px"></div>';
+      const r = await MM.api('/notifications', { auth: true });
+      view().innerHTML = `<h2>Notifications</h2>${(r.ok ? r.data.items : []).map(n => `<div class="note ${n.read ? '' : 'unread'}"><b>${MM.esc(n.text)}</b><span class="muted">${new Date(n.at).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</span></div>`).join('')}`;
+    }
+
+    async function onViewClick(e) {
+      const go = e.target.closest('[data-go]');
+      if (go) { e.preventDefault(); history.pushState({}, '', 'account.html?tab=' + go.dataset.go); return show(); }
+      if (e.target.id === 'add-address') return addressForm();
+      const ed = e.target.closest('[data-edit-address]'); if (ed) return addressForm(book.find(a => a.id === ed.dataset.editAddress));
+      const df = e.target.closest('[data-default-address]');
+      if (df) { await MM.api('/addresses/' + df.dataset.defaultAddress, { method: 'PUT', body: { isDefault: true }, auth: true }); return addresses(); }
+      const del = e.target.closest('[data-delete-address]');
+      if (del) {
+        const ok = await MM.dialog({ title: 'Delete address?', html: '<p>This address will be removed from your account.</p>', actions: [{ label: 'Cancel', value: false }, { label: 'Delete', value: true, kind: 'btn-accent' }] });
+        if (ok) { await MM.api('/addresses/' + del.dataset.deleteAddress, { method: 'DELETE', auth: true }); MM.toast('Address deleted', 1800); addresses(); }
+        return;
+      }
+      const un = e.target.closest('[data-unwish]');
+      if (un) { const id = un.dataset.unwish; MM.write(MM.KEYS.wish, MM.wishlist().filter(x => x !== id)); await MM.api('/wishlist/' + id, { method: 'DELETE', auth: true }); wishlist(); }
+    }
+  </script>
+</body>
+</html>

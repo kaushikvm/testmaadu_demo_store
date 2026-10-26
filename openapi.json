@@ -1,0 +1,2569 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "testmaadu.mart demo store API",
+    "version": "2.0.0",
+    "description": "REST API behind the testmaadu.mart demo store (created by TestMaadu.in). Use it to practise API, performance and security testing.\n\nSign in with POST /auth/login, then send `Authorization: Bearer <token>`.\n- Admin: admin@testmaadu.in / Admin@123 (can add, edit and delete products)\n- Customer: customer@testmaadu.in / Demo@123\n\nOptional header `X-Demo-Session`: products an admin adds are kept per session id, so each browser sees only its own.\n\nEverything is kept in memory and can reset when the server restarts. Planted bugs are listed in the Demo guide (/demo.html)."
+  },
+  "servers": [
+    {
+      "url": "/api",
+      "description": "This server"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Auth"
+    },
+    {
+      "name": "Catalog"
+    },
+    {
+      "name": "Reviews"
+    },
+    {
+      "name": "Delivery"
+    },
+    {
+      "name": "Cart"
+    },
+    {
+      "name": "Checkout"
+    },
+    {
+      "name": "Orders"
+    },
+    {
+      "name": "Account"
+    },
+    {
+      "name": "Profile"
+    },
+    {
+      "name": "Admin",
+      "description": "Admin only (admin@testmaadu.in / Admin@123)"
+    },
+    {
+      "name": "Health"
+    },
+    {
+      "name": "AI Assistant",
+      "description": "Scripted AI chat bot behind the Ask AI widget. Streams OpenAI-style server-sent events."
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Health check",
+        "operationId": "getHealth",
+        "responses": {
+          "200": {
+            "description": "Service is up",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "ok"
+                    },
+                    "service": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "string"
+                    },
+                    "time": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Sign in and get a bearer token",
+        "operationId": "login",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              },
+              "examples": {
+                "customer": {
+                  "value": {
+                    "email": "customer@testmaadu.in",
+                    "password": "Demo@123"
+                  }
+                },
+                "admin": {
+                  "value": {
+                    "email": "admin@testmaadu.in",
+                    "password": "Admin@123"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing email or password",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Wrong email or password",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "Returns a JWT (HS256, valid 30 days) and sets the om_session cookie."
+      }
+    },
+    "/categories": {
+      "get": {
+        "tags": [
+          "Catalog"
+        ],
+        "summary": "List categories",
+        "operationId": "listCategories",
+        "responses": {
+          "200": {
+            "description": "Category names",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "example": [
+                  "Electronics",
+                  "Fashion",
+                  "Home",
+                  "Books",
+                  "Sports"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/products": {
+      "get": {
+        "tags": [
+          "Catalog"
+        ],
+        "summary": "List and search products",
+        "operationId": "listProducts",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Text search in name and description",
+            "example": "head"
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "All",
+                "Electronics",
+                "Fashion",
+                "Home",
+                "Books",
+                "Sports"
+              ]
+            }
+          },
+          {
+            "name": "inStock",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "freeDelivery",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "minRating",
+            "in": "query",
+            "schema": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 5
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "popular",
+                "price-asc",
+                "price-desc",
+                "rating"
+              ],
+              "default": "popular"
+            }
+          },
+          {
+            "name": "maxPrice",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "example": 2000
+            }
+          },
+          {
+            "$ref": "#/components/parameters/DemoSession"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matching products",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "total": {
+                      "type": "integer"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Product"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many searches",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Search crashed (apostrophe in q)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "Browsing is fast. With q (search) it takes 300 to 800 ms and is limited to 30 searches a minute per visitor (429). DEMO BUG: a search with an apostrophe returns 500 with a stack trace."
+      },
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Add a product (admin only)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DemoSession"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProductInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Product"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Signed in as a customer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid product",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/products/{productId}": {
+      "get": {
+        "tags": [
+          "Catalog"
+        ],
+        "summary": "Get one product",
+        "operationId": "getProduct",
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "P101"
+          },
+          {
+            "$ref": "#/components/parameters/DemoSession"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The product",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Product"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown product",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Edit a product",
+        "description": "Meant for admins only. DEMO BUG: it only checks that someone is signed in, so a customer token can change a price.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "P101"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/DemoSession"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProductUpdate"
+              },
+              "example": {
+                "price": 1
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Product"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such product",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid product",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Delete a product you added (admin only)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "N12345"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/DemoSession"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Signed in as a customer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such product",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Built-in products cannot be deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cart/quote": {
+      "post": {
+        "tags": [
+          "Cart"
+        ],
+        "summary": "Price a cart (subtotal, coupon, delivery, GST)",
+        "operationId": "quoteCart",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CartRequest"
+              },
+              "example": {
+                "items": [
+                  {
+                    "productId": "P101",
+                    "qty": 1
+                  },
+                  {
+                    "productId": "P110",
+                    "qty": 2
+                  }
+                ],
+                "coupon": "TESTMAADU10",
+                "delivery": "standard"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Priced cart",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Quote"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty cart or bad quantity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown product",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Not enough stock",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid coupon",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DemoSession"
+          }
+        ]
+      }
+    },
+    "/checkout": {
+      "post": {
+        "tags": [
+          "Checkout"
+        ],
+        "summary": "Pay and place an order",
+        "operationId": "checkout",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckoutRequest"
+              },
+              "example": {
+                "items": [
+                  {
+                    "productId": "P101",
+                    "qty": 1
+                  },
+                  {
+                    "productId": "P110",
+                    "qty": 1
+                  }
+                ],
+                "coupon": "",
+                "delivery": "standard",
+                "giftWrap": false,
+                "address": {
+                  "fullName": "Demo Tester",
+                  "phone": "9876543210",
+                  "line1": "12 MG Road",
+                  "line2": "",
+                  "city": "Bengaluru",
+                  "state": "Karnataka",
+                  "pincode": "560001"
+                },
+                "payment": {
+                  "method": "card",
+                  "cardLast4": "1111"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Order placed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Order"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad JSON or empty cart",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown product",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Not enough stock",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error (address, payment, coupon)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DemoSession"
+          }
+        ]
+      }
+    },
+    "/orders": {
+      "get": {
+        "tags": [
+          "Orders"
+        ],
+        "summary": "List my orders",
+        "operationId": "listOrders",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Orders, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "total": {
+                      "type": "integer"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Order"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/orders/{orderId}": {
+      "get": {
+        "tags": [
+          "Orders"
+        ],
+        "summary": "Get one order",
+        "operationId": "getOrder",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "OM-20261014-12345"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The order",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Order"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Order not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "DEMO BUG (IDOR): returns any order by ID, including other customers' orders such as OM-20261013-51862."
+      }
+    },
+    "/profile": {
+      "get": {
+        "tags": [
+          "Profile"
+        ],
+        "summary": "Get my profile",
+        "operationId": "getProfile",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Profile"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Profile"
+        ],
+        "summary": "Update my profile",
+        "operationId": "updateProfile",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProfileUpdate"
+              },
+              "example": {
+                "name": "Demo Tester",
+                "phone": "9876543210",
+                "country": "India",
+                "gender": "Prefer not to say",
+                "deliverySlot": "evening",
+                "notifications": {
+                  "orderUpdates": true,
+                  "offers": true,
+                  "newsletter": false
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Profile"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid name or phone",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Phone with + or symbols (the page still says saved: demo bug)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/chat": {
+      "post": {
+        "tags": [
+          "AI Assistant"
+        ],
+        "summary": "Ask the testmaadu.mart Assistant (streamed answer)",
+        "operationId": "chat",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              },
+              "example": {
+                "model": "testmaadu-mart-assistant-1",
+                "stream": true,
+                "max_tokens": 400,
+                "user": "chat-demo1",
+                "messages": [
+                  {
+                    "role": "system",
+                    "content": "You are testmaadu.mart Assistant."
+                  },
+                  {
+                    "role": "user",
+                    "content": "What is the return policy?"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Answer streamed as text/event-stream: data: {chat.completion.chunk} lines, a usage chunk, then data: [DONE]",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "data: {\"object\":\"chat.completion.chunk\",\"model\":\"testmaadu-mart-assistant-1\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"You \"}}]}\n\ndata: [DONE]\n\n"
+              }
+            }
+          },
+          "400": {
+            "description": "Empty message or bad JSON",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Sign out (clears the om_session cookie)",
+        "responses": {
+          "200": {
+            "description": "Signed out"
+          }
+        }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Who am I (role and token expiry)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Profile with role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Profile"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/search/suggest": {
+      "get": {
+        "tags": [
+          "Catalog"
+        ],
+        "summary": "Search suggestions while typing (fast, no limit)",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "head"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/DemoSession"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Up to 6 suggestions"
+          }
+        }
+      }
+    },
+    "/products/{productId}/reviews": {
+      "get": {
+        "tags": [
+          "Reviews"
+        ],
+        "summary": "Reviews for a product (REST)",
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "P101"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/DemoSession"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reviews"
+          },
+          "404": {
+            "description": "No such product",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/graphql": {
+      "post": {
+        "tags": [
+          "Reviews"
+        ],
+        "summary": "GraphQL: GetReviews and GetRatingSummary",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DemoSession"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GraphQLRequest"
+              },
+              "examples": {
+                "GetReviews": {
+                  "value": {
+                    "operationName": "GetReviews",
+                    "query": "query GetReviews($productId: ID!) { reviews(productId: $productId) { id author rating text date verified } }",
+                    "variables": {
+                      "productId": "P101"
+                    }
+                  }
+                },
+                "GetRatingSummary": {
+                  "value": {
+                    "operationName": "GetRatingSummary",
+                    "query": "query GetRatingSummary($productId: ID!) { ratingSummary(productId: $productId) { average count breakdown } }",
+                    "variables": {
+                      "productId": "P101"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "GraphQL result. Errors come back with status 200 and an errors array."
+          }
+        }
+      }
+    },
+    "/recommendations": {
+      "get": {
+        "tags": [
+          "Catalog"
+        ],
+        "summary": "Recommended products (sometimes slow: 2 to 3 s)",
+        "parameters": [
+          {
+            "name": "exclude",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "example": "P101"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/DemoSession"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "4 products"
+          }
+        }
+      }
+    },
+    "/delivery/check": {
+      "get": {
+        "tags": [
+          "Delivery"
+        ],
+        "summary": "Check delivery to a PIN code",
+        "parameters": [
+          {
+            "name": "pincode",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "560001"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Delivery days and cash on delivery"
+          },
+          "422": {
+            "description": "Invalid PIN code",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/notifications": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Notifications (the header bell polls this every 30 s)",
+        "responses": {
+          "200": {
+            "description": "Notifications with unread count"
+          }
+        }
+      }
+    },
+    "/wishlist": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "My wishlist",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DemoSession"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Products"
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Add to wishlist",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DemoSession"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "productId"
+                ],
+                "properties": {
+                  "productId": {
+                    "type": "string",
+                    "example": "P104"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Added"
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such product",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/wishlist/{productId}": {
+      "delete": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Remove from wishlist",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "P104"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Removed"
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/addresses": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "My saved addresses",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Addresses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "total": {
+                      "type": "integer"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/SavedAddress"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Add an address",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddressInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedAddress"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid address",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/addresses/{addressId}": {
+      "put": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Edit an address",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "addressId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "A1"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddressInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated"
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such address",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid address",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Delete an address",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "addressId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "A1"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such address",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/orders": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "All orders from all customers (admin only)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Orders"
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Signed in as a customer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Token from POST /auth/login"
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "required": [
+          "error",
+          "message"
+        ],
+        "properties": {
+          "error": {
+            "type": "string",
+            "example": "UNAUTHORIZED"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "PaymentError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "example": "PAYMENT_FAILED"
+          },
+          "message": {
+            "type": "string"
+          },
+          "gatewayCode": {
+            "type": "string",
+            "example": "GW-5001"
+          },
+          "amount": {
+            "type": "number"
+          },
+          "currency": {
+            "type": "string",
+            "example": "INR"
+          }
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "password": {
+            "type": "string",
+            "format": "password"
+          }
+        }
+      },
+      "LoginResponse": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          },
+          "tokenType": {
+            "type": "string",
+            "example": "Bearer"
+          },
+          "user": {
+            "$ref": "#/components/schemas/Profile"
+          }
+        }
+      },
+      "Product": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "P101"
+          },
+          "name": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "price": {
+            "type": "number"
+          },
+          "mrp": {
+            "type": "number"
+          },
+          "rating": {
+            "type": "number"
+          },
+          "reviews": {
+            "type": "integer"
+          },
+          "stock": {
+            "type": "integer"
+          },
+          "freeDelivery": {
+            "type": "boolean"
+          },
+          "emoji": {
+            "type": "string"
+          },
+          "colors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "description": {
+            "type": "string"
+          },
+          "image": {
+            "type": "string",
+            "description": "data:image/... URL, products added by an admin only"
+          },
+          "isNew": {
+            "type": "boolean"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CartItem": {
+        "type": "object",
+        "required": [
+          "productId",
+          "qty"
+        ],
+        "properties": {
+          "productId": {
+            "type": "string",
+            "example": "P101"
+          },
+          "qty": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10
+          }
+        }
+      },
+      "CartRequest": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CartItem"
+            }
+          },
+          "coupon": {
+            "type": "string"
+          },
+          "delivery": {
+            "type": "string",
+            "enum": [
+              "standard",
+              "express"
+            ]
+          }
+        }
+      },
+      "QuoteLine": {
+        "type": "object",
+        "properties": {
+          "productId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "emoji": {
+            "type": "string"
+          },
+          "price": {
+            "type": "number"
+          },
+          "qty": {
+            "type": "integer"
+          },
+          "lineTotal": {
+            "type": "number"
+          }
+        }
+      },
+      "Quote": {
+        "type": "object",
+        "properties": {
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QuoteLine"
+            }
+          },
+          "itemCount": {
+            "type": "integer"
+          },
+          "subtotal": {
+            "type": "number"
+          },
+          "discount": {
+            "type": "number"
+          },
+          "shipping": {
+            "type": "number"
+          },
+          "tax": {
+            "type": "number"
+          },
+          "total": {
+            "type": "number"
+          },
+          "coupon": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              }
+            }
+          },
+          "currency": {
+            "type": "string"
+          }
+        }
+      },
+      "Address": {
+        "type": "object",
+        "required": [
+          "fullName",
+          "phone",
+          "line1",
+          "city",
+          "state",
+          "pincode"
+        ],
+        "properties": {
+          "fullName": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "line1": {
+            "type": "string"
+          },
+          "line2": {
+            "type": "string"
+          },
+          "city": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "pincode": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{5}$"
+          }
+        }
+      },
+      "Payment": {
+        "type": "object",
+        "required": [
+          "method"
+        ],
+        "properties": {
+          "method": {
+            "type": "string",
+            "enum": [
+              "card",
+              "upi",
+              "cod"
+            ]
+          },
+          "cardLast4": {
+            "type": "string",
+            "example": "1111"
+          },
+          "upiId": {
+            "type": "string",
+            "example": "demo@okbank"
+          }
+        }
+      },
+      "CheckoutRequest": {
+        "type": "object",
+        "required": [
+          "items",
+          "address",
+          "payment"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CartItem"
+            }
+          },
+          "coupon": {
+            "type": "string"
+          },
+          "delivery": {
+            "type": "string",
+            "enum": [
+              "standard",
+              "express"
+            ]
+          },
+          "giftWrap": {
+            "type": "boolean"
+          },
+          "address": {
+            "$ref": "#/components/schemas/Address"
+          },
+          "payment": {
+            "$ref": "#/components/schemas/Payment"
+          }
+        }
+      },
+      "Order": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "OM-20261014-12345"
+          },
+          "status": {
+            "type": "string",
+            "example": "Confirmed"
+          },
+          "placedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QuoteLine"
+            }
+          },
+          "itemCount": {
+            "type": "integer"
+          },
+          "totals": {
+            "type": "object",
+            "properties": {
+              "subtotal": {
+                "type": "number"
+              },
+              "discount": {
+                "type": "number"
+              },
+              "shipping": {
+                "type": "number"
+              },
+              "tax": {
+                "type": "number"
+              },
+              "total": {
+                "type": "number"
+              },
+              "currency": {
+                "type": "string"
+              }
+            }
+          },
+          "delivery": {
+            "type": "string"
+          },
+          "address": {
+            "$ref": "#/components/schemas/Address"
+          },
+          "payment": {
+            "type": "object",
+            "properties": {
+              "method": {
+                "type": "string"
+              },
+              "cardLast4": {
+                "type": "string"
+              },
+              "upiId": {
+                "type": "string"
+              },
+              "transactionId": {
+                "type": "string"
+              }
+            }
+          },
+          "giftWrap": {
+            "type": "boolean"
+          },
+          "estimatedDelivery": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      },
+      "Profile": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "country": {
+            "type": "string"
+          },
+          "gender": {
+            "type": "string"
+          },
+          "deliverySlot": {
+            "type": "string",
+            "enum": [
+              "anytime",
+              "morning",
+              "evening"
+            ]
+          },
+          "notifications": {
+            "type": "object",
+            "properties": {
+              "orderUpdates": {
+                "type": "boolean"
+              },
+              "offers": {
+                "type": "boolean"
+              },
+              "newsletter": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      },
+      "ProfileUpdate": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "country": {
+            "type": "string"
+          },
+          "gender": {
+            "type": "string",
+            "enum": [
+              "Male",
+              "Female",
+              "Prefer not to say"
+            ]
+          },
+          "deliverySlot": {
+            "type": "string",
+            "enum": [
+              "anytime",
+              "morning",
+              "evening"
+            ]
+          },
+          "notifications": {
+            "type": "object",
+            "properties": {
+              "orderUpdates": {
+                "type": "boolean"
+              },
+              "offers": {
+                "type": "boolean"
+              },
+              "newsletter": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      },
+      "ChatRequest": {
+        "type": "object",
+        "required": [
+          "messages"
+        ],
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "stream": {
+            "type": "boolean"
+          },
+          "max_tokens": {
+            "type": "integer"
+          },
+          "temperature": {
+            "type": "number"
+          },
+          "user": {
+            "type": "string",
+            "description": "Conversation id"
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "role",
+                "content"
+              ],
+              "properties": {
+                "role": {
+                  "type": "string",
+                  "enum": [
+                    "system",
+                    "user",
+                    "assistant"
+                  ]
+                },
+                "content": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "metadata": {
+            "type": "object",
+            "properties": {
+              "page": {
+                "type": "string"
+              },
+              "lastOrder": {
+                "type": "object",
+                "nullable": true
+              }
+            }
+          }
+        }
+      },
+      "ChatError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "ProductInput": {
+        "type": "object",
+        "required": [
+          "name",
+          "category",
+          "price",
+          "stock"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 60,
+            "example": "Kids Story Book"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "Electronics",
+              "Fashion",
+              "Home",
+              "Books",
+              "Sports"
+            ],
+            "example": "Books"
+          },
+          "price": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000,
+            "example": 299
+          },
+          "mrp": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000,
+            "example": 399
+          },
+          "stock": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 999,
+            "example": 20
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500,
+            "example": "Bedtime stories for ages 4 to 8."
+          },
+          "freeDelivery": {
+            "type": "boolean",
+            "example": false
+          },
+          "image": {
+            "type": "string",
+            "description": "Optional data:image/png;base64,... under 300 KB"
+          }
+        }
+      },
+      "ProductUpdate": {
+        "type": "object",
+        "description": "Any fields of ProductInput",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 60,
+            "example": "Kids Story Book"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "Electronics",
+              "Fashion",
+              "Home",
+              "Books",
+              "Sports"
+            ],
+            "example": "Books"
+          },
+          "price": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000,
+            "example": 299
+          },
+          "mrp": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000,
+            "example": 399
+          },
+          "stock": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 999,
+            "example": 20
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500,
+            "example": "Bedtime stories for ages 4 to 8."
+          },
+          "freeDelivery": {
+            "type": "boolean",
+            "example": false
+          },
+          "image": {
+            "type": "string",
+            "description": "Optional data:image/png;base64,... under 300 KB"
+          }
+        }
+      },
+      "Review": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "author": {
+            "type": "string"
+          },
+          "rating": {
+            "type": "integer"
+          },
+          "text": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "verified": {
+            "type": "boolean"
+          }
+        }
+      },
+      "SavedAddress": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "A1"
+          },
+          "label": {
+            "type": "string",
+            "example": "Home"
+          },
+          "fullName": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "line1": {
+            "type": "string"
+          },
+          "line2": {
+            "type": "string"
+          },
+          "city": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "pincode": {
+            "type": "string"
+          },
+          "isDefault": {
+            "type": "boolean"
+          }
+        }
+      },
+      "AddressInput": {
+        "type": "object",
+        "required": [
+          "fullName",
+          "phone",
+          "line1",
+          "city",
+          "state",
+          "pincode"
+        ],
+        "properties": {
+          "label": {
+            "type": "string",
+            "example": "Office"
+          },
+          "fullName": {
+            "type": "string",
+            "example": "Demo Customer"
+          },
+          "phone": {
+            "type": "string",
+            "example": "9876500002"
+          },
+          "line1": {
+            "type": "string",
+            "example": "5 Residency Road"
+          },
+          "line2": {
+            "type": "string",
+            "example": ""
+          },
+          "city": {
+            "type": "string",
+            "example": "Bengaluru"
+          },
+          "state": {
+            "type": "string",
+            "example": "Karnataka"
+          },
+          "pincode": {
+            "type": "string",
+            "example": "560025"
+          },
+          "isDefault": {
+            "type": "boolean"
+          }
+        }
+      },
+      "GraphQLRequest": {
+        "type": "object",
+        "required": [
+          "query"
+        ],
+        "properties": {
+          "operationName": {
+            "type": "string",
+            "enum": [
+              "GetReviews",
+              "GetRatingSummary"
+            ],
+            "example": "GetReviews"
+          },
+          "query": {
+            "type": "string",
+            "example": "query GetReviews($productId: ID!) { reviews(productId: $productId) { id author rating text } }"
+          },
+          "variables": {
+            "type": "object",
+            "example": {
+              "productId": "P101"
+            }
+          }
+        }
+      },
+      "RateLimitError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "example": "RATE_LIMITED"
+          },
+          "message": {
+            "type": "string"
+          },
+          "retryAfterSeconds": {
+            "type": "integer"
+          }
+        }
+      }
+    },
+    "parameters": {
+      "DemoSession": {
+        "name": "X-Demo-Session",
+        "in": "header",
+        "required": false,
+        "description": "Keeps products you add separate from other visitors. Any short text.",
+        "schema": {
+          "type": "string",
+          "example": "ds_mytest01"
+        }
+      }
+    }
+  }
+}
